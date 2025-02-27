@@ -1,0 +1,286 @@
+/* Reset and base styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+#root {
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* Modern color scheme */
+:root {
+  --primary-color: #2563eb;
+  --secondary-color: #3b82f6;
+  --background-color: #f8fafc;
+  --surface-color: #ffffff;
+  --text-primary: #1e293b;
+  --text-secondary: #64748b;
+  --border-color: #e2e8f0;
+  --hover-color: #dbeafe;
+}
+
+/* Main container */
+.app-container {
+  display: grid;
+  grid-template-columns: 300px 1fr 300px;
+  height: 100vh;
+  background-color: var(--background-color);
+  color: var(--text-primary);
+}
+
+/* Common styles for panes */
+.left-pane,
+.main-area,
+.right-pane {
+  background-color: var(--surface-color);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  overflow-y: auto;
+}
+
+/* Left pane styles */
+.data-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.source-button {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--surface-color);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.source-button:hover {
+  background-color: var(--hover-color);
+  border-color: var(--primary-color);
+}
+
+/* Main area styles */
+.main-area {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.query-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.query-input {
+  min-height: 120px;
+  padding: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--text-primary);
+  background-color: var(--surface-color);
+  transition: border-color 0.2s ease;
+}
+
+.query-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--hover-color);
+}
+
+.execute-button {
+  padding: 12px 24px;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  font-weight: 500;
+}
+
+.execute-button:hover {
+  background-color: var(--secondary-color);
+}
+
+.results-section {
+  flex-grow: 1;
+  border-top: 1px solid var(--border-color);
+  padding-top: 24px;
+}
+
+.results-container {
+  height: 100%;
+  min-height: 200px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  background-color: var(--surface-color);
+}
+
+/* Right pane styles */
+.visualization-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.viz-button {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background-color: var(--surface-color);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+}
+
+.viz-button:hover {
+  background-color: var(--hover-color);
+  border-color: var(--primary-color);
+}
+
+/* Typography */
+h2 {
+  margin-bottom: 16px;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+h3 {
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+  background-color: #f5f5f5;
+}
+
+/* Common styles for panes */
+.left-pane,
+.main-area,
+.right-pane {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Left pane styles */
+.data-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.source-button {
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  background-color: #f0f0f0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.source-button:hover {
+  background-color: #e0e0e0;
+}
+
+/* Main area styles */
+.main-area {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.query-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.query-input {
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.execute-button {
+  padding: 12px 24px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.execute-button:hover {
+  background-color: #0056b3;
+}
+
+.results-section {
+  flex-grow: 1;
+  border-top: 1px solid #ddd;
+  padding-top: 20px;
+}
+
+.results-container {
+  height: 100%;
+  min-height: 200px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+/* Right pane styles */
+.visualization-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.viz-button {
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  background-color: #f0f0f0;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.viz-button:hover {
+  background-color: #e0e0e0;
+}
+
+/* Typography */
+h2 {
+  margin: 0;
+  color: #333;
+  font-size: 1.5rem;
+}
+
+h3 {
+  margin: 0;
+  color: #555;
+  font-size: 1.2rem;
+}
