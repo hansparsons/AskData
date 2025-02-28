@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import './App.css'
+import ChartModal from './components/ChartModal'
 
 function App() {
   const [selectedDataSource, setSelectedDataSource] = useState<string | null>(null)
@@ -11,6 +12,14 @@ function App() {
   const [naturalLanguageAnswer, setNaturalLanguageAnswer] = useState('')
   const [isExecuting, setIsExecuting] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
+  const [showChartModal, setShowChartModal] = useState(false)
+  const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar')
+  const [chartData, setChartData] = useState<any>(null)
+  const [isLoadingChart, setIsLoadingChart] = useState(false)
+  const [includeAnswerInChart, setIncludeAnswerInChart] = useState(true)
+  const [availableModels, setAvailableModels] = useState<Array<{name: string}>>([]) 
+  const [selectedModel, setSelectedModel] = useState<string>('llama3')
+  const [isLoadingModels, setIsLoadingModels] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -45,6 +54,34 @@ function App() {
     }
   }
 
+  // Fetch available models when component mounts
+  useEffect(() => {
+    const fetchModels = async () => {
+      setIsLoadingModels(true)
+      try {
+        const response = await fetch('http://localhost:3000/api/models')
+        if (!response.ok) {
+          throw new Error('Failed to fetch models')
+        }
+        const data = await response.json()
+        if (data.models && Array.isArray(data.models)) {
+          setAvailableModels(data.models)
+          // Set the first model as selected if available
+          if (data.models.length > 0) {
+            setSelectedModel(data.models[0].name)
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching models:', error)
+        setUploadError(error instanceof Error ? error.message : 'Failed to fetch available models')
+      } finally {
+        setIsLoadingModels(false)
+      }
+    }
+
+    fetchModels()
+  }, [])
+
   const handleQuerySubmit = async () => {
     if (!selectedDataSource || !query.trim()) return
 
@@ -62,6 +99,7 @@ function App() {
         body: JSON.stringify({
           question: query,
           selectedSources: [selectedDataSource],
+          selectedModel: selectedModel
         }),
       })
 
@@ -98,6 +136,7 @@ function App() {
         body: JSON.stringify({
           question: query,
           selectedSources: [selectedDataSource],
+          selectedModel: selectedModel,
           execute: true
         }),
       })
@@ -118,11 +157,68 @@ function App() {
     }
   }
 
+  const handleChartButtonClick = async (type: 'bar' | 'line' | 'pie') => {
+    if (!queryResults) return
+    
+    setChartType(type)
+    setIsLoadingChart(true)
+    setChartData(null)
+    
+    try {
+      const response = await fetch('http://localhost:3000/api/chart-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: query,
+          data: naturalLanguageAnswer && includeAnswerInChart ? { results: queryResults, answer: naturalLanguageAnswer } : queryResults,
+          chartType: type,
+          selectedModel: selectedModel
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Chart data generation failed')
+      }
+
+      const data = await response.json()
+      setChartData(data)
+      setShowChartModal(true)
+    } catch (error) {
+      console.error('Error generating chart data:', error)
+      // Fall back to using raw query results if chart data generation fails
+      setChartData(null)
+      setShowChartModal(true)
+    } finally {
+      setIsLoadingChart(false)
+    }
+  }
+
   return (
     <div className="app-container">
       {/* Left Pane - Data Source Selection */}
       <div className="left-pane">
         <h2>Data Sources</h2>
+        <div className="model-selection">
+          <h3>LLM Model</h3>
+          <select 
+            value={selectedModel} 
+            onChange={(e) => setSelectedModel(e.target.value)}
+            disabled={isLoadingModels || isExecuting}
+            className="model-dropdown"
+          >
+            {isLoadingModels ? (
+              <option>Loading models...</option>
+            ) : availableModels.length === 0 ? (
+              <option>No models available</option>
+            ) : (
+              availableModels.map(model => (
+                <option key={model.name} value={model.name}>{model.name}</option>
+              ))
+            )}
+          </select>
+        </div>
         <div className="data-source-list">
           {selectedDataSource && (
             <div className="selected-source">
@@ -199,12 +295,55 @@ function App() {
       <div className="right-pane">
         <h2>Visualization</h2>
         <div className="visualization-options">
-          <button className="viz-button" disabled={!queryResults}>Bar Chart</button>
-          <button className="viz-button" disabled={!queryResults}>Line Chart</button>
-          <button className="viz-button" disabled={!queryResults}>Pie Chart</button>
+          <button 
+            className="viz-button" 
+            disabled={!queryResults || isLoadingChart} 
+            onClick={() => handleChartButtonClick('bar')}
+          >
+            {isLoadingChart && chartType === 'bar' ? 'Loading...' : 'Bar Chart'}
+          </button>
+          <button 
+            className="viz-button" 
+            disabled={!queryResults || isLoadingChart}
+            onClick={() => handleChartButtonClick('line')}
+          >
+            {isLoadingChart && chartType === 'line' ? 'Loading...' : 'Line Chart'}
+          </button>
+          <button 
+            className="viz-button" 
+            disabled={!queryResults || isLoadingChart}
+            onClick={() => handleChartButtonClick('pie')}
+          >
+            {isLoadingChart && chartType === 'pie' ? 'Loading...' : 'Pie Chart'}
+          </button>
           <button className="viz-button" disabled={!queryResults}>Export</button>
+          <div className="chart-options">
+            <label className="include-answer-label">
+              <input
+                type="checkbox"
+                checked={includeAnswerInChart}
+                onChange={(e) => setIncludeAnswerInChart(e.target.checked)}
+                disabled={!naturalLanguageAnswer}
+              />
+              Include answer text in chart
+            </label>
+          </div>
         </div>
       </div>
+      
+      {/* Chart Modal */}
+      {showChartModal && (
+        <ChartModal
+          isOpen={showChartModal}
+          onClose={() => {
+            setShowChartModal(false);
+            setChartData(null);
+          }}
+          chartType={chartType}
+          data={chartData || queryResults}
+          question={query}
+        />
+      )}
     </div>
   )
 }

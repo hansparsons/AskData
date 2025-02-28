@@ -5,8 +5,8 @@ import { sequelize } from '../db';
 export class DocumentService {
   private ollamaService: OllamaService;
 
-  constructor() {
-    this.ollamaService = new OllamaService();
+  constructor(model?: string) {
+    this.ollamaService = new OllamaService(model);
   }
 
   async processFile(filePath: string, fileName: string, fileType: string): Promise<ProcessedData> {

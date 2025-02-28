@@ -6,6 +6,8 @@ import DataSource from './models/DataSource';
 import path from 'path';
 import fs from 'fs/promises';
 import { DocumentService } from './services/documentService';
+import { OllamaService } from './services/ollamaService';
+import { ModelService } from './services/modelService';
 
 // Initialize Express app
 const app = express();
@@ -101,13 +103,13 @@ app.post('/api/connect-database', async (req: Request, res: Response) => {
 // Query endpoint
 app.post('/api/query', async (req: Request, res: Response) => {
   try {
-    const { question, selectedSources } = req.body;
+    const { question, selectedSources, selectedModel } = req.body;
     
     if (!question || !Array.isArray(selectedSources) || selectedSources.length === 0) {
       return res.status(400).json({ error: 'Invalid request parameters' });
     }
 
-    const documentService = new DocumentService();
+    const documentService = new DocumentService(selectedModel);
     const result = await documentService.executeQuery(question, selectedSources);
 
     res.json({
@@ -119,6 +121,41 @@ app.post('/api/query', async (req: Request, res: Response) => {
     console.error('Query processing error:', error);
     res.status(500).json({ 
       error: error instanceof Error ? error.message : 'Failed to process your query. Please try again.'
+    });
+  }
+});
+
+// Chart data generation endpoint
+app.post('/api/chart-data', async (req: Request, res: Response) => {
+  try {
+    const { question, data, chartType, selectedModel } = req.body;
+    
+    if (!question || !data || !chartType) {
+      return res.status(400).json({ error: 'Missing required parameters: question, data, or chartType' });
+    }
+
+    const ollamaService = new OllamaService(selectedModel);
+    const chartData = await ollamaService.generateChartData(question, data, chartType);
+
+    res.json(chartData);
+  } catch (error) {
+    console.error('Chart data generation error:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to generate chart data. Please try again.'
+    });
+  }
+});
+
+// Get available LLM models endpoint
+app.get('/api/models', async (req: Request, res: Response) => {
+  try {
+    const modelService = new ModelService();
+    const models = await modelService.getAvailableModels();
+    res.json({ models });
+  } catch (error) {
+    console.error('Error fetching models:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to fetch available models. Please try again.'
     });
   }
 });
