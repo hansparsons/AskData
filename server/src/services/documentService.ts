@@ -1,12 +1,49 @@
 import { ProcessedData, processDocument, processSpreadsheet, storeProcessedData } from '../utils/fileProcessor';
 import { OllamaService } from './ollamaService';
+import { OpenAIService } from './openaiService';
+import { ModelService, isOpenAIModel } from './modelService';
 import { sequelize } from '../db';
 
 export class DocumentService {
-  private ollamaService: OllamaService;
+  private ollamaService: OllamaService | null = null;
+  private openaiService: OpenAIService | null = null;
+  private modelService: ModelService;
+  private selectedModel: string;
 
   constructor(model?: string) {
-    this.ollamaService = new OllamaService(model);
+    this.modelService = new ModelService();
+    this.selectedModel = model || 'llama3';
+    
+    // Initialize the appropriate service based on the model
+    this.initializeService(this.selectedModel);
+  }
+  
+  private initializeService(model: string) {
+    // Check if it's an OpenAI model
+    if (model === 'gpt-4o') {
+      const apiKey = this.modelService.getOpenAIApiKey();
+      if (apiKey) {
+        this.openaiService = new OpenAIService(apiKey, model);
+        this.ollamaService = null;
+      } else {
+        // Instead of throwing an error, set services to null
+        // The error will be handled when methods are called
+        this.openaiService = null;
+        this.ollamaService = null;
+        console.warn('OpenAI API key not set for model:', model);
+      }
+    } else {
+      // It's an Ollama model
+      this.ollamaService = new OllamaService(model);
+      this.openaiService = null;
+    }
+  }
+  
+  setOpenAIApiKey(apiKey: string) {
+    this.modelService.setOpenAIApiKey(apiKey);
+    if (this.selectedModel === 'gpt-4o' && apiKey) {
+      this.openaiService = new OpenAIService(apiKey, this.selectedModel);
+    }
   }
 
   async processFile(filePath: string, fileName: string, fileType: string): Promise<ProcessedData> {
@@ -71,8 +108,21 @@ export class DocumentService {
         throw new Error('No valid schemas found for the selected sources');
       }
 
-      // Generate SQL query using LLM
-      const sqlQuery = await this.ollamaService.generateSQLQuery(schemas, question);
+      // Generate SQL query using the appropriate LLM service
+      let sqlQuery: string;
+      
+      if (this.openaiService && this.selectedModel === 'gpt-4o') {
+        sqlQuery = await this.openaiService.generateSQLQuery(schemas, question);
+      } else if (this.ollamaService) {
+        sqlQuery = await this.ollamaService.generateSQLQuery(schemas, question);
+      } else {
+        // Check if we're trying to use OpenAI model without API key
+        if (this.selectedModel === 'gpt-4o') {
+          throw new Error('OpenAI API key is required for using GPT-4o model. Please set your API key first.');
+        } else {
+          throw new Error('No language model service available');
+        }
+      }
 
       if (!sqlQuery?.trim()) {
         throw new Error('Failed to generate SQL query');
@@ -81,8 +131,21 @@ export class DocumentService {
       // Execute the query
       const [results] = await sequelize.query(sqlQuery);
 
-      // Generate natural language response
-      const answer = await this.ollamaService.generateNaturalLanguageResponse(question, results);
+      // Generate natural language response using the appropriate LLM service
+      let answer: string;
+      
+      if (this.openaiService && this.selectedModel === 'gpt-4o') {
+        answer = await this.openaiService.generateNaturalLanguageResponse(question, results);
+      } else if (this.ollamaService) {
+        answer = await this.ollamaService.generateNaturalLanguageResponse(question, results);
+      } else {
+        // Check if we're trying to use OpenAI model without API key
+        if (this.selectedModel === 'gpt-4o') {
+          throw new Error('OpenAI API key is required for using GPT-4o model. Please set your API key first.');
+        } else {
+          throw new Error('No language model service available');
+        }
+      }
 
       return {
         sql: sqlQuery,
@@ -104,22 +167,74 @@ export class DocumentService {
     try {
       for (const sourceName of sourceNames) {
         // Sanitize table name using the same logic as in fileProcessor
-        const sanitizedTableName = sourceName
+        let sanitizedTableName = sourceName
           .replace(/^\d{13}-/, '') // remove timestamp prefix
           .replace(/\.[^/.]+$/, '') // remove file extension
           .replace(/[^a-zA-Z0-9_]/g, '_') // replace special chars with underscore
           .replace(/^[0-9]/, 't$&') // prepend 't' if starts with number
           .toLowerCase(); // convert to lowercase for consistency
-
-        const [result] = await sequelize.query(
-          `SHOW COLUMNS FROM \`${sanitizedTableName}\``,
-          { raw: true }
-        );
-        if (result) {
-          schemas.push({
-            tableName: sourceName,
-            columns: result
-          });
+        
+        try {
+          // First try with the standard sanitized name
+          const [result] = await sequelize.query(
+            `SHOW COLUMNS FROM \`${sanitizedTableName}\``,
+            { raw: true }
+          );
+          
+          if (result) {
+            schemas.push({
+              tableName: sourceName,
+              columns: result
+            });
+          }
+        } catch (error) {
+          // If the first attempt fails, try with a truncated name
+          // Some database systems might have table name length limitations
+          console.warn(`Failed to find table with name: ${sanitizedTableName}, trying to find a matching version`);
+          
+          // Get all tables from the database
+          const [tables] = await sequelize.query('SHOW TABLES', { raw: true });
+          const tableList = tables.map((t: any) => {
+            // Safely extract the first value from the object
+            const values = Object.values(t);
+            return values.length > 0 && values[0] != null ? values[0].toString().toLowerCase() : '';
+          }).filter(Boolean); // Remove any empty strings
+          
+          // More flexible matching strategy:
+          // 1. Try to find a table that starts with our sanitized name (for truncated names)
+          // 2. Try to find a table that contains a significant portion of our sanitized name
+          // This handles cases where the table name might have been modified differently
+          let matchingTable = null;
+          
+          // First try to find a table that starts with our sanitized name (up to first 30 chars)
+          const prefix = sanitizedTableName.substring(0, Math.min(sanitizedTableName.length, 30));
+          matchingTable = tableList.find(tableName => tableName.startsWith(prefix));
+          
+          // If no match found and the name is long, try a more flexible approach
+          if (!matchingTable && sanitizedTableName.length > 20) {
+            // Get a significant portion of the name (first 20 chars) to use for matching
+            const significantPortion = sanitizedTableName.substring(0, 20);
+            matchingTable = tableList.find(tableName => tableName.includes(significantPortion));
+          }
+          
+          if (matchingTable) {
+            console.log(`Found matching table: ${matchingTable}`);
+            const [result] = await sequelize.query(
+              `SHOW COLUMNS FROM \`${matchingTable}\``,
+              { raw: true }
+            );
+            
+            if (result) {
+              schemas.push({
+                tableName: matchingTable, // Use the actual table name found in the database
+                actualTableName: matchingTable, // Store the actual table name for reference
+                originalName: sourceName, // Keep the original name for display purposes
+                columns: result
+              });
+            }
+          } else {
+            console.error(`No matching table found for: ${sanitizedTableName}`);
+          }
         }
       }
 

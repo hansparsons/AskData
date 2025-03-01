@@ -300,71 +300,41 @@ Respond ONLY with the JSON object, no additional text.`;
   }
 
   private async sendToOllama(prompt: string): Promise<string> {
-    if (!prompt?.trim()) {
-      throw new Error('Empty prompt provided');
-    }
-
     try {
-      // First check if Ollama service is available
-      try {
-        await this.checkOllamaAvailability();
-      } catch (error) {
-        console.error('Ollama availability check failed:', error);
-        throw new Error('Unable to connect to Ollama service. Please ensure it is running at http://127.0.0.1:11434.');
-      }
-
-      const apiUrl = `${OLLAMA_API_BASE_URL}${OLLAMA_API_GENERATE_ENDPOINT}`;
-      console.log(`Sending request to Ollama API at ${apiUrl}`);
-      
-      const requestData = {
-        model: this.model,
-        prompt,
-        stream: false
-      };
-      
-      console.log('Request payload:', JSON.stringify(requestData));
-      
-      const response = await axios.post<OllamaResponse>(apiUrl, requestData, {
-        headers: {
-          'Content-Type': 'application/json'
+      const response = await axios.post(
+        `${OLLAMA_API_BASE_URL}${OLLAMA_API_GENERATE_ENDPOINT}`,
+        {
+          model: this.model,
+          prompt,
+          stream: false
         },
-        timeout: 30000 // 30 seconds timeout
-      });
+        {
+          timeout: 120000, // Increased timeout to 120 seconds
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
-      console.log('Ollama API response status:', response.status);
-      
-      if (!response?.data) {
-        console.error('Empty response data from Ollama API');
-        throw new Error('Empty response data from Ollama API');
-      }
-      
-      if (!response.data.response) {
-        console.error('Invalid response format from Ollama API:', response.data);
-        throw new Error('Invalid response from Ollama API: Missing response field');
+      if (response.data && typeof response.data.response === 'string') {
+        return response.data.response.trim();
       }
 
-      return response.data.response;
+      throw new Error('Invalid response format from Ollama API');
     } catch (error) {
+      console.error('Error in Ollama API request:', error);
       if (axios.isAxiosError(error)) {
-        console.error('Axios error details:', {
-          code: error.code,
-          message: error.message,
-          response: error.response?.data,
-          status: error.response?.status
-        });
-        
-        if (error.code === 'ECONNREFUSED') {
-          throw new Error('Unable to connect to Ollama service. Please ensure it is running at http://127.0.0.1:11434.');
+        if (error.code === 'ECONNABORTED') {
+          throw new Error('Request to Ollama API timed out. The operation took too long to complete. Please try again with a simpler query.');
         }
-        
         if (error.response) {
-          throw new Error(`Ollama API error (${error.response.status}): ${JSON.stringify(error.response.data)}`);
+          throw new Error(`Ollama API error: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
         }
-        
-        throw new Error(`Ollama API error: ${error.message}`);
+        if (error.request) {
+          throw new Error('No response received from Ollama API. Please check if the service is running.');
+        }
       }
-      console.error('Error calling Ollama:', error);
-      throw new Error('Failed to process with LLM');
+      throw error;
     }
   }
 

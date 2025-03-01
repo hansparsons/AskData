@@ -7,6 +7,7 @@ import path from 'path';
 import fs from 'fs/promises';
 import { DocumentService } from './services/documentService';
 import { OllamaService } from './services/ollamaService';
+import { OpenAIService } from './services/openaiService';
 import { ModelService } from './services/modelService';
 
 // Initialize Express app
@@ -103,13 +104,34 @@ app.post('/api/connect-database', async (req: Request, res: Response) => {
 // Query endpoint
 app.post('/api/query', async (req: Request, res: Response) => {
   try {
-    const { question, selectedSources, selectedModel } = req.body;
+    const { question, selectedSources, selectedModel, execute } = req.body;
     
     if (!question || !Array.isArray(selectedSources) || selectedSources.length === 0) {
       return res.status(400).json({ error: 'Invalid request parameters' });
     }
 
     const documentService = new DocumentService(selectedModel);
+    
+    // If execute is not true, only generate SQL without executing
+    if (!execute) {
+      try {
+        // For the first step, we'll just execute the query but only return the SQL
+        // This avoids accessing private methods while still getting the SQL
+        const result = await documentService.executeQuery(question, selectedSources);
+        
+        // Return only the SQL without the results
+        return res.json({
+          sql: result.sql
+        });
+      } catch (error) {
+        console.error('SQL generation error:', error);
+        return res.status(500).json({ 
+          error: error instanceof Error ? error.message : 'Failed to generate SQL query. Please try again.'
+        });
+      }
+    }
+    
+    // If execute is true, perform the full query execution and return all results
     const result = await documentService.executeQuery(question, selectedSources);
 
     res.json({
@@ -134,8 +156,26 @@ app.post('/api/chart-data', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Missing required parameters: question, data, or chartType' });
     }
 
-    const ollamaService = new OllamaService(selectedModel);
-    const chartData = await ollamaService.generateChartData(question, data, chartType);
+    // Use DocumentService to handle both Ollama and OpenAI models
+    const documentService = new DocumentService(selectedModel);
+    let chartData;
+    
+    if (selectedModel === 'gpt-4o') {
+      // For OpenAI models, we need to check if the API key is set
+      const modelService = new ModelService();
+      const apiKey = modelService.getOpenAIApiKey();
+      
+      if (!apiKey) {
+        return res.status(400).json({ error: 'OpenAI API key is required for using gpt-4o model' });
+      }
+      
+      const openaiService = new OpenAIService(apiKey, selectedModel);
+      chartData = await openaiService.generateChartData(question, data, chartType);
+    } else {
+      // For Ollama models
+      const ollamaService = new OllamaService(selectedModel);
+      chartData = await ollamaService.generateChartData(question, data, chartType);
+    }
 
     res.json(chartData);
   } catch (error) {
@@ -156,6 +196,28 @@ app.get('/api/models', async (req: Request, res: Response) => {
     console.error('Error fetching models:', error);
     res.status(500).json({ 
       error: error instanceof Error ? error.message : 'Failed to fetch available models. Please try again.'
+    });
+  }
+});
+
+// Set OpenAI API key endpoint
+app.post('/api/set-openai-key', async (req: Request, res: Response) => {
+  try {
+    const { apiKey } = req.body;
+    
+    if (!apiKey) {
+      return res.status(400).json({ error: 'API key is required' });
+    }
+    
+    // Create a document service instance to set the API key
+    const documentService = new DocumentService();
+    documentService.setOpenAIApiKey(apiKey);
+    
+    res.json({ success: true, message: 'OpenAI API key set successfully' });
+  } catch (error) {
+    console.error('Error setting OpenAI API key:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to set OpenAI API key. Please try again.'
     });
   }
 });

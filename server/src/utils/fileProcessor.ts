@@ -20,6 +20,17 @@ export interface ProcessedData {
   data: any[];
 }
 
+function sanitizeColumnName(columnName: string): string {
+  return columnName
+    .replace(/[()]/g, '') // Remove parentheses
+    .replace(/[\s#\-]/g, '_') // Replace spaces, hashtags, and hyphens with underscores
+    .replace(/[^a-zA-Z0-9_]/g, '') // Remove any other special characters
+    .replace(/_+/g, '_') // Replace multiple underscores with a single one
+    .replace(/_$/g, '') // Remove trailing underscores
+    .replace(/^(\d)/, 'col_$1') // Prefix with 'col_' if starts with number
+    .toLowerCase(); // Convert to lowercase for consistency
+}
+
 export async function processSpreadsheet(filePath: string, fileName: string): Promise<ProcessedData> {
   try {
     const fileBuffer = await readFile(filePath);
@@ -43,10 +54,10 @@ export async function processSpreadsheet(filePath: string, fileName: string): Pr
       throw new Error('Spreadsheet is empty');
     }
     
-    // Infer schema from the first row
+    // Infer schema from the first row and sanitize column names
     const firstRow = data[0] as Record<string, unknown>;
     const columns = Object.keys(firstRow).map(key => ({
-      name: key,
+      name: sanitizeColumnName(key.toLowerCase()), // Ensure consistent casing before sanitization
       type: inferColumnType(data, key),
       nullable: true
     }));
@@ -55,12 +66,28 @@ export async function processSpreadsheet(filePath: string, fileName: string): Pr
       throw new Error('No columns found in spreadsheet');
     }
     
+    // Create a mapping of original column names to sanitized column names
+    const columnMapping: Record<string, string> = {};
+    Object.keys(firstRow).forEach(key => {
+      columnMapping[key] = sanitizeColumnName(key.toLowerCase()); // Ensure consistent casing before sanitization
+    });
+    
+    // Update data with sanitized column names
+    const sanitizedData = data.map(row => {
+      const sanitizedRow: Record<string, unknown> = {};
+      Object.entries(row as Record<string, unknown>).forEach(([key, value]) => {
+        const sanitizedKey = columnMapping[key] || sanitizeColumnName(key.toLowerCase()); // Handle any unmapped columns
+        sanitizedRow[sanitizedKey] = value;
+      });
+      return sanitizedRow;
+    });
+    
     return {
       schema: {
         tableName: fileName.replace(/^\d+-/, '').replace(/\.[^/.]+$/, ''),
         columns
       },
-      data
+      data: sanitizedData
     };
   } catch (error) {
     console.error('Error processing spreadsheet:', error);
@@ -177,18 +204,63 @@ export async function storeProcessedData(processedData: ProcessedData, sourceTyp
 
 function inferColumnType(data: any[], key: string): string {
   try {
+    // Check for mixed data types
+    let hasString = false;
+    let hasNumber = false;
+    let hasBoolean = false;
+    let hasDate = false;
+    
+    // First pass: check for any non-numeric strings
     for (const row of data) {
       const value = row[key];
       if (value != null) {
-        if (typeof value === 'number') {
-          return Number.isInteger(value) ? 'INTEGER' : 'FLOAT';
+        if (typeof value === 'string' && value.trim() !== '') {
+          // Consider any string containing letters as TEXT type
+          if (value.trim().match(/[A-Za-z]/)) {
+            hasString = true;
+            break; // Exit early since we found a string
+          }
+          // Only consider as number if it's purely numeric
+          if (!isNaN(Number(value)) && value.trim().match(/^-?\d*\.?\d+$/)) {
+            hasNumber = true;
+          } else {
+            hasString = true;
+            break;
+          }
+        } else if (typeof value === 'number') {
+          hasNumber = true;
         } else if (typeof value === 'boolean') {
-          return 'BOOLEAN';
+          hasBoolean = true;
         } else if (value instanceof Date) {
-          return 'DATETIME';
+          hasDate = true;
         }
       }
     }
+    
+    // Priority: String > Date > Boolean > Number
+    if (hasString) {
+      return 'TEXT';
+    } else if (hasDate) {
+      return 'DATETIME';
+    } else if (hasBoolean) {
+      return 'BOOLEAN';
+    } else if (hasNumber) {
+      // Only if all numeric values, check if they're all integers
+      let allIntegers = true;
+      for (const row of data) {
+        const value = row[key];
+        if (value != null) {
+          const numValue = typeof value === 'string' ? Number(value) : value;
+          if (typeof numValue === 'number' && !Number.isInteger(numValue)) {
+            allIntegers = false;
+            break;
+          }
+        }
+      }
+      return allIntegers ? 'INTEGER' : 'FLOAT';
+    }
+    
+    // Default to TEXT for empty or null values
     return 'TEXT';
   } catch (error) {
     console.error('Error inferring column type:', error);

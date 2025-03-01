@@ -17,9 +17,13 @@ function App() {
   const [chartData, setChartData] = useState<any>(null)
   const [isLoadingChart, setIsLoadingChart] = useState(false)
   const [includeAnswerInChart, setIncludeAnswerInChart] = useState(true)
-  const [availableModels, setAvailableModels] = useState<Array<{name: string}>>([]) 
+  const [availableModels, setAvailableModels] = useState<Array<{name: string, provider?: string, requiresApiKey?: boolean}>>([]) 
   const [selectedModel, setSelectedModel] = useState<string>('llama3')
   const [isLoadingModels, setIsLoadingModels] = useState(false)
+  const [showApiKeyModal, setShowApiKeyModal] = useState(false)
+  const [openaiApiKey, setOpenaiApiKey] = useState('')
+  const [isSettingApiKey, setIsSettingApiKey] = useState(false)
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -54,6 +58,16 @@ function App() {
     }
   }
 
+  // Add useEffect to log button state conditions whenever they change
+  useEffect(() => {
+    console.log('Button state conditions updated:', {
+      selectedDataSource,
+      queryTrimmed: query.trim(),
+      isExecuting,
+      buttonDisabled: !selectedDataSource || !query.trim() || isExecuting
+    })
+  }, [selectedDataSource, query, isExecuting])
+
   // Fetch available models when component mounts
   useEffect(() => {
     const fetchModels = async () => {
@@ -81,6 +95,75 @@ function App() {
 
     fetchModels()
   }, [])
+  
+  // Handle model selection change
+  const handleModelChange = (modelName: string) => {
+    setSelectedModel(modelName)
+    
+    // Reset executing state when changing models
+    setIsExecuting(false)
+    
+    // Check if the selected model is an OpenAI model that requires an API key
+    const selectedModelInfo = availableModels.find(model => model.name === modelName)
+    if (selectedModelInfo?.provider === 'openai' && selectedModelInfo?.requiresApiKey) {
+      setShowApiKeyModal(true)
+    }
+  }
+  
+  // Handle API key submission
+  const handleApiKeySubmit = async () => {
+    if (!openaiApiKey.trim()) {
+      setApiKeyError('API key is required')
+      return
+    }
+    
+    setIsSettingApiKey(true)
+    setApiKeyError(null)
+    setIsExecuting(false)  // Reset executing state
+    
+    try {
+      const response = await fetch('http://localhost:3000/api/set-openai-key', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey: openaiApiKey }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to set API key')
+      }
+      
+      // Close the modal on success
+      setShowApiKeyModal(false)
+      
+      // Clear any previous error messages
+      setUploadError(null)
+      setApiKeyError(null)
+      
+      // If there was an error message displayed in the natural language answer area about API key,
+      // clear it so the user knows the API key has been successfully set
+      if (naturalLanguageAnswer && naturalLanguageAnswer.includes('OpenAI API key is required')) {
+        setNaturalLanguageAnswer('')
+      }
+
+      // Add debug logging
+      console.log('API key set successfully, button state:', {
+        selectedDataSource,
+        queryTrimmed: query.trim(),
+        isExecuting: false
+      })
+    } catch (error) {
+      console.error('Error setting API key:', error)
+      setApiKeyError(error instanceof Error ? error.message : 'Failed to set API key')
+      // Remove this line that was setting isExecuting to true on error
+      // setIsExecuting(true)  
+    } finally {
+      setIsSettingApiKey(false)
+      setIsExecuting(false)  // Always ensure executing state is reset
+    }
+  }
 
   const handleQuerySubmit = async () => {
     if (!selectedDataSource || !query.trim()) return
@@ -150,7 +233,15 @@ function App() {
       setNaturalLanguageAnswer(data.answer)
     } catch (error) {
       console.error('Error executing query:', error)
-      setNaturalLanguageAnswer('Failed to execute the query. Please try again.')
+      
+      // Check if the error is related to missing OpenAI API key
+      const errorMessage = error instanceof Error ? error.message : 'Failed to execute the query. Please try again.'
+      setNaturalLanguageAnswer(errorMessage)
+      
+      // If the error is about missing OpenAI API key, show the API key modal
+      if (errorMessage.includes('OpenAI API key is required')) {
+        setShowApiKeyModal(true)
+      }
     } finally {
       setShowConfirmation(false)
       setIsExecuting(false)
@@ -204,7 +295,7 @@ function App() {
           <h3>LLM Model</h3>
           <select 
             value={selectedModel} 
-            onChange={(e) => setSelectedModel(e.target.value)}
+            onChange={(e) => handleModelChange(e.target.value)}
             disabled={isLoadingModels || isExecuting}
             className="model-dropdown"
           >
@@ -214,7 +305,9 @@ function App() {
               <option>No models available</option>
             ) : (
               availableModels.map(model => (
-                <option key={model.name} value={model.name}>{model.name}</option>
+                <option key={model.name} value={model.name}>
+                  {model.name}{model.provider === 'openai' ? ' (OpenAI)' : ''}
+                </option>
               ))
             )}
           </select>
@@ -258,7 +351,7 @@ function App() {
           <button 
             className="execute-button"
             onClick={handleQuerySubmit}
-            disabled={!selectedDataSource || isExecuting}
+            disabled={!selectedDataSource || !query.trim() || isExecuting}
           >
             {isExecuting ? 'Processing...' : 'Execute Query'}
           </button>
@@ -343,6 +436,50 @@ function App() {
           data={chartData || queryResults}
           question={query}
         />
+      )}
+      
+      {/* OpenAI API Key Modal */}
+      {showApiKeyModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h2>OpenAI API Key Required</h2>
+            <p>Please enter your OpenAI API key to use the GPT-4o model.</p>
+            
+            <div className="api-key-input">
+              <input
+                type="password"
+                value={openaiApiKey}
+                onChange={(e) => setOpenaiApiKey(e.target.value)}
+                placeholder="Enter your OpenAI API key"
+                disabled={isSettingApiKey}
+              />
+            </div>
+            
+            {apiKeyError && <div className="error-message">{apiKeyError}</div>}
+            
+            <div className="modal-buttons">
+              <button 
+                onClick={handleApiKeySubmit}
+                disabled={isSettingApiKey}
+              >
+                {isSettingApiKey ? 'Saving...' : 'Save API Key'}
+              </button>
+              <button 
+                onClick={() => {
+                  setShowApiKeyModal(false);
+                  // Revert to previous model if user cancels
+                  const previousModel = availableModels.find(model => !model.requiresApiKey);
+                  if (previousModel) {
+                    setSelectedModel(previousModel.name);
+                  }
+                }}
+                disabled={isSettingApiKey}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
