@@ -156,7 +156,7 @@ export class DocumentService {
       });
 
       // Fix value quoting for values containing spaces
-      sqlQuery = sqlQuery.replace(/['"](.*?)['"](?=\s*[;)]|$)/g, (match, value) => {
+      sqlQuery = sqlQuery.replace(/['"](.+?)['"](\s*[;)]|$)/g, (match, value) => {
         if (value.includes(' ')) {
           // Remove any existing backticks and add proper quotes
           value = value.replace(/`/g, '').trim();
@@ -164,6 +164,9 @@ export class DocumentService {
         }
         return match;
       });
+      
+      // Fix GROUP BY issues for MySQL's ONLY_FULL_GROUP_BY mode
+      sqlQuery = this.fixGroupByIssues(sqlQuery);
       
       // Log the final SQL query for debugging
       console.log('Final SQL query:', sqlQuery);
@@ -199,6 +202,142 @@ export class DocumentService {
       }
       throw new Error('An unexpected error occurred during query execution');
     }
+  }
+
+  /**
+   * Fixes GROUP BY issues for MySQL's ONLY_FULL_GROUP_BY mode
+   * Detects queries with aggregate functions and non-aggregated columns and adds appropriate GROUP BY clauses
+   */
+  private fixGroupByIssues(sqlQuery: string): string {
+    // Check if the query contains aggregate functions
+    const hasAggregateFunctions = /\b(COUNT|SUM|AVG|MIN|MAX)\s*\(/i.test(sqlQuery);
+    
+    if (!hasAggregateFunctions) {
+      return sqlQuery; // No aggregate functions, no need to fix
+    }
+    
+    // Check if the query already has a GROUP BY clause
+    const hasGroupBy = /\bGROUP\s+BY\b/i.test(sqlQuery);
+    
+    if (hasGroupBy) {
+      return sqlQuery; // Already has GROUP BY, assume it's correct
+    }
+    
+    try {
+      // Simple SQL parser to extract SELECT columns
+      const selectMatch = sqlQuery.match(/\bSELECT\s+(.+?)\s+FROM\b/is);
+      
+      if (!selectMatch) {
+        return sqlQuery; // Can't parse the query, return as is
+      }
+      
+      const selectClause = selectMatch[1];
+      
+      // Split the SELECT clause by commas, but ignore commas inside functions
+      const columns: string[] = [];
+      let currentColumn = '';
+      let parenthesesCount = 0;
+      
+      for (let i = 0; i < selectClause.length; i++) {
+        const char = selectClause[i];
+        
+        if (char === '(') {
+          parenthesesCount++;
+        } else if (char === ')') {
+          parenthesesCount--;
+        }
+        
+        if (char === ',' && parenthesesCount === 0) {
+          columns.push(currentColumn.trim());
+          currentColumn = '';
+        } else {
+          currentColumn += char;
+        }
+      }
+      
+      if (currentColumn.trim()) {
+        columns.push(currentColumn.trim());
+      }
+      
+      // Identify non-aggregated columns
+      const nonAggregatedColumns: string[] = [];
+      
+      for (const column of columns) {
+        // Skip columns that are aggregate functions or have aliases with aggregate functions
+        if (!/\b(COUNT|SUM|AVG|MIN|MAX)\s*\(/i.test(column)) {
+          // Extract the column name, handling backticks and aliases
+          let columnName = column;
+          
+          // Remove AS clause if present
+          if (/ AS /i.test(columnName)) {
+            columnName = columnName.split(/ AS /i)[0].trim();
+          }
+          
+          // Handle backticked column names
+          const backtickMatch = columnName.match(/`([^`]+)`/);
+          if (backtickMatch) {
+            columnName = backtickMatch[1];
+          }
+          
+          // Handle table.column format
+          if (columnName.includes('.')) {
+            columnName = columnName.split('.')[1];
+            // Remove backticks if present
+            columnName = columnName.replace(/`/g, '');
+          }
+          
+          // Remove any remaining backticks
+          columnName = columnName.replace(/`/g, '');
+          
+          // Add to non-aggregated columns if it's not a complex expression
+          if (!columnName.includes('(') && !columnName.includes(')')) {
+            nonAggregatedColumns.push(column);
+          }
+        }
+      }
+      
+      // If we have non-aggregated columns, add a GROUP BY clause
+      if (nonAggregatedColumns.length > 0) {
+        // Check if the query has a WHERE clause
+        const whereMatch = sqlQuery.match(/\bWHERE\b/i);
+        const orderByMatch = sqlQuery.match(/\bORDER\s+BY\b/i);
+        const limitMatch = sqlQuery.match(/\bLIMIT\b/i);
+        
+        let insertPosition;
+        
+        if (limitMatch?.index !== undefined) {
+          insertPosition = limitMatch.index;
+        } else if (orderByMatch?.index !== undefined) {
+          insertPosition = orderByMatch.index;
+        } else if (whereMatch?.index !== undefined) {
+          // Find the end of the WHERE clause
+          const whereClause = sqlQuery.substring(whereMatch.index);
+          insertPosition = whereMatch.index + whereClause.length;
+        } else {
+          // No WHERE clause, insert before the end of the query
+          insertPosition = sqlQuery.length;
+        }
+        
+        // Remove semicolon if present
+        let modifiedQuery = sqlQuery.replace(/;\s*$/, '');
+        
+        // Insert GROUP BY clause
+        const groupByClause = ` GROUP BY ${nonAggregatedColumns.join(', ')}`;
+        modifiedQuery = modifiedQuery.substring(0, insertPosition) + groupByClause + modifiedQuery.substring(insertPosition);
+        
+        // Add semicolon back if it was present
+        if (sqlQuery.trim().endsWith(';')) {
+          modifiedQuery += ';';
+        }
+        
+        return modifiedQuery;
+      }
+    } catch (error) {
+      console.error('Error fixing GROUP BY issues:', error);
+      // If anything goes wrong with our parser, return the original query
+    }
+    
+    return sqlQuery;
   }
 
   private async getSourceSchemas(sourceNames: string[]): Promise<any[]> {

@@ -46,7 +46,7 @@ export const initDatabase = async () => {
     
     // Force sync the DataSource model to ensure the table exists
     try {
-      await DataSource.sync({ force: true }); // Using force:true to ensure clean table creation
+      await DataSource.sync({ alter: true }); // Using alter:true to preserve existing data while ensuring correct structure
       console.log('DataSource model synchronized successfully.');
     } catch (syncError) {
       console.error('Error syncing DataSource model:', syncError);
