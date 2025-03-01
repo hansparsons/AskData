@@ -186,6 +186,22 @@ app.post('/api/chart-data', async (req: Request, res: Response) => {
   }
 });
 
+// Get all data sources endpoint
+app.get('/api/data-sources', async (req: Request, res: Response) => {
+  try {
+    const dataSources = await DataSource.findAll({
+      attributes: ['id', 'name', 'type', 'schema'],
+      order: [['createdAt', 'DESC']]
+    });
+    res.json({ dataSources });
+  } catch (error) {
+    console.error('Error fetching data sources:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to fetch data sources. Please try again.'
+    });
+  }
+});
+
 // Get available LLM models endpoint
 app.get('/api/models', async (req: Request, res: Response) => {
   try {

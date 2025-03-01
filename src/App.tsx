@@ -3,9 +3,11 @@ import './App.css'
 import ChartModal from './components/ChartModal'
 
 function App() {
+  const [dataSources, setDataSources] = useState<Array<{id: number, name: string, type: string}>>([])
   const [selectedDataSource, setSelectedDataSource] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [isLoadingDataSources, setIsLoadingDataSources] = useState(false)
   const [query, setQuery] = useState('')
   const [sqlQuery, setSqlQuery] = useState('')
   const [queryResults, setQueryResults] = useState<any>(null)
@@ -48,6 +50,16 @@ function App() {
 
       const data = await response.json()
       setSelectedDataSource(data.filename)
+      
+      // Refresh the data sources list after successful upload
+      const sourcesResponse = await fetch('http://localhost:3000/api/data-sources')
+      if (!sourcesResponse.ok) {
+        throw new Error('Failed to fetch updated data sources')
+      }
+      const sourcesData = await sourcesResponse.json()
+      if (sourcesData.dataSources && Array.isArray(sourcesData.dataSources)) {
+        setDataSources(sourcesData.dataSources)
+      }
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Failed to upload file')
     } finally {
@@ -67,6 +79,30 @@ function App() {
       buttonDisabled: !selectedDataSource || !query.trim() || isExecuting
     })
   }, [selectedDataSource, query, isExecuting])
+
+  // Fetch data sources when component mounts
+  useEffect(() => {
+    const fetchDataSources = async () => {
+      setIsLoadingDataSources(true)
+      try {
+        const response = await fetch('http://localhost:3000/api/data-sources')
+        if (!response.ok) {
+          throw new Error('Failed to fetch data sources')
+        }
+        const data = await response.json()
+        if (data.dataSources && Array.isArray(data.dataSources)) {
+          setDataSources(data.dataSources)
+        }
+      } catch (error) {
+        console.error('Error fetching data sources:', error)
+        setUploadError(error instanceof Error ? error.message : 'Failed to fetch data sources')
+      } finally {
+        setIsLoadingDataSources(false)
+      }
+    }
+
+    fetchDataSources()
+  }, [])
 
   // Fetch available models when component mounts
   useEffect(() => {
@@ -313,12 +349,27 @@ function App() {
           </select>
         </div>
         <div className="data-source-list">
-          {selectedDataSource && (
-            <div className="selected-source">
-              <h3>Selected Source:</h3>
-              <p>{selectedDataSource}</p>
-            </div>
-          )}
+          <div className="data-sources">
+            <h3>Available Sources:</h3>
+            {isLoadingDataSources ? (
+              <p>Loading data sources...</p>
+            ) : dataSources.length === 0 ? (
+              <p>No data sources available</p>
+            ) : (
+              <div className="source-list">
+                {dataSources.map(source => (
+                  <div 
+                    key={source.id} 
+                    className={`source-item ${selectedDataSource === source.name ? 'selected' : ''}`}
+                    onClick={() => setSelectedDataSource(source.name)}
+                  >
+                    <span className="source-name">{source.name}</span>
+                    <span className="source-type">{source.type}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <input
             type="file"
             ref={fileInputRef}

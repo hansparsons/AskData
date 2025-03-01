@@ -128,6 +128,46 @@ export class DocumentService {
         throw new Error('Failed to generate SQL query');
       }
 
+      // Ensure consistent table names by replacing any variants with the actual table names
+      schemas.forEach(schema => {
+        // Create a more robust regex that can match the table name with different underscore patterns
+        // This will match the table name regardless of how many underscores are used
+        const tableNameBase = schema.tableName.replace(/_{1,}/g, '_');
+        // Escape special regex characters in the table name
+        const escapedTableName = tableNameBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Replace underscores with a pattern that matches 1-3 underscores
+        const tableNamePattern = escapedTableName.replace(/_/g, '[_]{1,3}');
+        const tableNameRegex = new RegExp(`\\b${tableNamePattern}\\b`, 'gi');
+        
+        // Log the table name replacement for debugging
+        console.log(`Ensuring table name consistency: Replacing matches of ${tableNameRegex} with ${schema.tableName}`);
+        
+        // Replace all variants with the actual table name
+        sqlQuery = sqlQuery.replace(tableNameRegex, schema.tableName);
+      });
+      
+      // Additional check to ensure table names are correctly used
+      schemas.forEach(schema => {
+        // Also check for table names without backticks and replace them
+        const plainTableName = schema.tableName.replace(/`/g, '');
+        if (sqlQuery.includes(plainTableName) && !sqlQuery.includes('`' + plainTableName + '`')) {
+          sqlQuery = sqlQuery.replace(new RegExp(`\\b${plainTableName}\\b`, 'g'), '`' + plainTableName + '`');
+        }
+      });
+
+      // Fix value quoting for values containing spaces
+      sqlQuery = sqlQuery.replace(/['"](.*?)['"](?=\s*[;)]|$)/g, (match, value) => {
+        if (value.includes(' ')) {
+          // Remove any existing backticks and add proper quotes
+          value = value.replace(/`/g, '').trim();
+          return `'${value}'`;
+        }
+        return match;
+      });
+      
+      // Log the final SQL query for debugging
+      console.log('Final SQL query:', sqlQuery);
+
       // Execute the query
       const [results] = await sequelize.query(sqlQuery);
 
@@ -183,7 +223,9 @@ export class DocumentService {
           
           if (result) {
             schemas.push({
-              tableName: sourceName,
+              tableName: sanitizedTableName, // Use sanitized table name instead of original name
+              actualTableName: sanitizedTableName, // Store the actual table name for reference
+              originalName: sourceName, // Keep the original name for display purposes
               columns: result
             });
           }

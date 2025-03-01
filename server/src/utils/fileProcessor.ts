@@ -151,6 +151,24 @@ export async function storeProcessedData(processedData: ProcessedData, sourceTyp
   const { schema, data } = processedData;
   
   try {
+    // Verify database connection before proceeding
+    try {
+      await sequelize.authenticate();
+      console.log('Database connection verified before storing data');
+    } catch (dbError) {
+      console.error('Database connection error before storing data:', dbError);
+      throw new Error('Database connection failed. Please ensure your database is running.');
+    }
+    
+    // Ensure DataSource model is synced before proceeding
+    try {
+      await DataSource.sync({ alter: true });
+      console.log('DataSource model synchronized before storing data');
+    } catch (syncError) {
+      console.error('Error syncing DataSource model:', syncError);
+      throw new Error('Failed to prepare database for storing data');
+    }
+
     // Validate input data
     if (!schema || !schema.columns || !Array.isArray(data)) {
       throw new Error('Invalid processed data format');

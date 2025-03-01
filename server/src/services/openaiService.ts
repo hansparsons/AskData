@@ -32,17 +32,8 @@ export class OpenAIService {
           throw new Error(`Invalid schema for table: ${schema.tableName}`);
         }
         
-        // Use the actual table name if it exists, otherwise sanitize the table name
-        // This ensures we use the exact table name that exists in the database
+        // Always use the actual table name from the database
         const tableName = schema.actualTableName || schema.tableName;
-        
-        // No need to sanitize if we're using the actual table name from the database
-        const sanitizedTableName = schema.actualTableName ? tableName : tableName
-          .replace(/^\d{13}-/, '') // remove timestamp prefix
-          .replace(/\.[^/.]+$/, '') // remove file extension
-          .replace(/[^a-zA-Z0-9_]/g, '_') // replace special chars with underscore
-          .replace(/^[0-9]/, 't$&') // prepend 't' if starts with number
-          .toLowerCase(); // convert to lowercase for consistency
         
         // Format columns for the prompt, ensuring proper backtick quoting for names with spaces
         const columnsText = schema.columns
@@ -52,7 +43,7 @@ export class OpenAIService {
           })
           .join(', ');
         
-        return `Table: ${sanitizedTableName}\nColumns: ${columnsText}\n`;
+        return `Table: ${tableName}\nColumns: ${columnsText}\n`;
       }).join('\n');
 
       const prompt = `You are a SQL expert. Given the following database schema:\n\n${schemaText}\n\nIMPORTANT RULES:\n1. Always use backticks (\`) around column names that contain spaces\n2. Use the exact column names as shown in the schema\n3. Do not create or reference columns that don't exist in the schema\n4. When performing date/time calculations, use the appropriate MySQL functions\n\nGenerate a SQL query to answer this question: "${question}"\n\nReturn ONLY the SQL query without any explanations or markdown formatting.`;

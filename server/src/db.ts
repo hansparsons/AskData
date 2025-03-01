@@ -34,13 +34,24 @@ export const initDatabase = async () => {
     await sequelize.authenticate();
     console.log('Database connection established successfully.');
     
+    // Create database if it doesn't exist
+    try {
+      await sequelize.query(`CREATE DATABASE IF NOT EXISTS dataask;`);
+    } catch (dbError) {
+      console.warn('Error creating database, it may already exist:', dbError);
+    }
+    
     // Import models to ensure they're registered with Sequelize
-    require('./models/DataSource');
+    const DataSource = require('./models/DataSource').default;
     
     // Force sync the DataSource model to ensure the table exists
-    const DataSource = require('./models/DataSource').default;
-    await DataSource.sync({ alter: true });
-    console.log('DataSource model synchronized successfully.');
+    try {
+      await DataSource.sync({ force: true }); // Using force:true to ensure clean table creation
+      console.log('DataSource model synchronized successfully.');
+    } catch (syncError) {
+      console.error('Error syncing DataSource model:', syncError);
+      throw new Error('Failed to create DataSource table: ' + (syncError instanceof Error ? syncError.message : 'Unknown error'));
+    }
     
     // Sync all other models
     await sequelize.sync();
