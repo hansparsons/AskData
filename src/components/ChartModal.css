@@ -33,14 +33,14 @@
 
 .chart-modal-header h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   color: #333;
 }
 
 .close-button {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 22px;
   cursor: pointer;
   color: #666;
 }
@@ -55,26 +55,47 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  align-items: center;
+  min-height: 600px;
+}
+
+.advanced-options {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  width: 100%;
+  max-height: none;
+  overflow: visible;
 }
 
 .chart-container {
-  height: 400px;
-  width: 100%;
+  height: var(--chart-height, 600px);
+  width: var(--chart-width, 100%);
+  min-height: 20%;
+  max-height: none;
   position: relative;
+  transition: height 0.3s ease, width 0.3s ease;
+  margin: 0 auto;
+  flex-grow: 1;
+}
+
+.chart-modal-content.show-options .chart-container {
+  height: 80%;
 }
 
 .chart-error {
   color: #d32f2f;
   text-align: center;
   padding: 20px;
-  font-size: 1rem;
+  font-size: 0.875rem;
 }
 
 .chart-loading {
   text-align: center;
   padding: 20px;
   color: #666;
-  font-size: 1rem;
+  font-size: 0.875rem;
 }
 
 .chart-context {
@@ -88,7 +109,7 @@
 .chart-context h3 {
   margin-top: 0;
   margin-bottom: 10px;
-  font-size: 1.1rem;
+  font-size: 0.9rem;
   color: #333;
 }
 
@@ -96,5 +117,361 @@
   margin: 0;
   color: #555;
   line-height: 1.5;
-  font-size: 0.95rem;
+  font-size: 0.75rem;
+}
+
+/* Chart Controls */
+.chart-controls {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.chart-type-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.chart-type-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.chart-type-buttons button {
+  padding: 6px 14px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.chart-type-buttons button.active {
+  background: #4a90e2;
+  color: white;
+  border-color: #4a90e2;
+}
+
+.chart-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chart-actions button {
+  padding: 6px 14px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+}
+
+.chart-actions button:hover {
+  background: #f5f5f5;
+}
+
+/* Advanced Options */
+.advanced-options {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.filter-section {
+  margin-bottom: 16px;
+}
+
+.filter-section label {
+  display: block;
+  margin-bottom: 8px;
+  color: #555;
+}
+
+.filter-section input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.appearance-section {
+  margin-bottom: 16px;
+}
+
+.chart-customization-section {
+  margin-bottom: 16px;
+}
+
+.chart-customization-section h4 {
+  margin-top: 0;
+  margin-bottom: 12px;
+  font-size: 0.875rem;
+  color: #333;
+}
+
+.option-group {
+  margin-bottom: 12px;
+}
+
+.option-group label {
+  display: block;
+  margin-bottom: 6px;
+  color: #555;
+  font-size: 0.7rem;
+}
+
+.option-group input[type="text"],
+.option-group select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.option-group input[type="range"] {
+  width: calc(100% - 60px);
+  margin-right: 10px;
+}
+
+.option-group span {
+  display: inline-block;
+  min-width: 50px;
+  text-align: right;
+  color: #666;
+  font-size: 0.7rem;
+}
+
+.chart-size-controls {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chart-size-controls label {
+  min-width: 100px;
+  color: #555;
+}
+
+.chart-size-controls input[type="range"] {
+  flex: 1;
+}
+
+.chart-size-controls span {
+  min-width: 60px;
+  text-align: right;
+  color: #666;
+}
+
+/* Color Customization */
+.color-section {
+  margin-top: 16px;
+}
+
+.color-section label {
+  display: block;
+  margin-bottom: 12px;
+  color: #555;
+  font-size: 0.6rem;
+}
+
+.color-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.color-chip {
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  min-width: 80px;
+  transition: transform 0.2s ease;
+}
+
+.color-chip:hover {
+  transform: scale(1.05);
+}
+
+.color-chip span {
+  color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  font-size: 0.5rem;
+}
+
+.color-picker-container {
+  position: absolute;
+  z-index: 1000;
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.color-picker-container button {
+  margin-top: 12px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+
+.color-picker-container button:hover {
+  background: #f5f5f5;
+}
+.export-options-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1100;
+}
+
+.export-options-popup {
+  background-color: white;
+  border-radius: 8px;
+  padding: 24px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+.export-options-popup h3 {
+  margin: 0 0 20px 0;
+  font-size: 1rem;
+  color: #333;
+}
+
+.export-option {
+  margin-bottom: 16px;
+}
+
+.export-option label {
+  display: block;
+  margin-bottom: 8px;
+  color: #555;
+  font-size: 0.7rem;
+}
+
+.export-option select,
+.export-option input[type="range"],
+.export-option input[type="text"] {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 12px;
+}
+
+.filename-input {
+  font-size: 14px !important;
+  padding: 10px !important;
+  border: 1px solid #ccc !important;
+  border-radius: 6px !important;
+  margin-bottom: 10px;
+}
+
+.tags-input {
+  margin-bottom: 10px;
+}
+
+.location-selector {
+  display: flex;
+  align-items: center;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f5f5f5;
+  overflow: hidden;
+}
+
+.folder-icon {
+  padding: 0 8px;
+  font-size: 14px;
+}
+
+.location-dropdown {
+  flex: 1;
+  border: none !important;
+  background: transparent !important;
+  padding: 8px 4px !important;
+  margin: 0 !important;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.dropdown-button {
+  background: transparent;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: #666;
+  font-size: 8px;
+}
+
+.export-option.checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.export-option.checkbox label {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.export-option.checkbox input[type="checkbox"] {
+  margin-right: 8px;
+}
+
+.export-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.export-buttons button {
+  padding: 8px 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.export-buttons button:last-child {
+  background: #4a90e2;
+  color: white;
+  border-color: #4a90e2;
+}
+
+.export-buttons button:hover {
+  background: #f5f5f5;
+}
+
+.export-buttons button:last-child:hover {
+  background: #357abd;
 }

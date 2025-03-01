@@ -18,7 +18,7 @@ function App() {
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>('bar')
   const [chartData, setChartData] = useState<any>(null)
   const [isLoadingChart, setIsLoadingChart] = useState(false)
-  const [includeAnswerInChart, setIncludeAnswerInChart] = useState(true)
+  const [includeAnswerInChart, setIncludeAnswerInChart] = useState(false)
   const [availableModels, setAvailableModels] = useState<Array<{name: string, provider?: string, requiresApiKey?: boolean}>>([]) 
   const [selectedModel, setSelectedModel] = useState<string>('llama3')
   const [isLoadingModels, setIsLoadingModels] = useState(false)
@@ -445,20 +445,6 @@ function App() {
             onClick={() => handleChartButtonClick('bar')}
           >
             {isLoadingChart && chartType === 'bar' ? 'Loading...' : 'Bar Chart'}
-          </button>
-          <button 
-            className="viz-button" 
-            disabled={!queryResults || isLoadingChart}
-            onClick={() => handleChartButtonClick('line')}
-          >
-            {isLoadingChart && chartType === 'line' ? 'Loading...' : 'Line Chart'}
-          </button>
-          <button 
-            className="viz-button" 
-            disabled={!queryResults || isLoadingChart}
-            onClick={() => handleChartButtonClick('pie')}
-          >
-            {isLoadingChart && chartType === 'pie' ? 'Loading...' : 'Pie Chart'}
           </button>
           <button className="viz-button" disabled={!queryResults}>Export</button>
           <div className="chart-options">
