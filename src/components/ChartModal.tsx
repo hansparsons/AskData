@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import './ChartModal.css';
 import {
   Chart as ChartJS,
@@ -11,7 +11,6 @@ import {
   Title,
   Tooltip,
   Legend,
-  Zoom,
 } from 'chart.js';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Bar, Line, Pie } from 'react-chartjs-2';
@@ -48,13 +47,98 @@ interface ExportOptions {
   scale: number;
 }
 
+// Add color theme types and themes
+interface ColorTheme {
+  name: string;
+  colors: string[];
+}
+
+const colorThemes: ColorTheme[] = [
+  {
+    name: 'Default',
+    colors: [
+      'rgba(75, 192, 192, 0.6)',
+      'rgba(255, 99, 132, 0.6)',
+      'rgba(54, 162, 235, 0.6)',
+      'rgba(255, 206, 86, 0.6)',
+      'rgba(153, 102, 255, 0.6)',
+      'rgba(255, 159, 64, 0.6)',
+      'rgba(199, 199, 199, 0.6)',
+      'rgba(83, 102, 255, 0.6)',
+      'rgba(78, 129, 188, 0.6)',
+      'rgba(225, 99, 99, 0.6)'
+    ]
+  },
+  {
+    name: 'Material',
+    colors: [
+      'rgba(63, 81, 181, 0.6)',
+      'rgba(233, 30, 99, 0.6)',
+      'rgba(0, 150, 136, 0.6)',
+      'rgba(255, 152, 0, 0.6)',
+      'rgba(156, 39, 176, 0.6)',
+      'rgba(33, 150, 243, 0.6)',
+      'rgba(244, 67, 54, 0.6)',
+      'rgba(0, 188, 212, 0.6)',
+      'rgba(139, 195, 74, 0.6)',
+      'rgba(121, 85, 72, 0.6)',
+    ]
+  },
+  {
+    name: 'Pastel',
+    colors: [
+      'rgba(172, 209, 233, 0.6)',
+      'rgba(247, 201, 208, 0.6)',
+      'rgba(207, 233, 172, 0.6)',
+      'rgba(233, 172, 209, 0.6)',
+      'rgba(172, 233, 207, 0.6)',
+      'rgba(209, 172, 233, 0.6)',
+      'rgba(233, 207, 172, 0.6)',
+      'rgba(172, 233, 233, 0.6)',
+      'rgba(233, 233, 172, 0.6)',
+      'rgba(233, 172, 172, 0.6)',
+    ]
+  },
+  {
+    name: 'Monochromatic Blue',
+    colors: [
+      'rgba(31, 119, 180, 0.6)',
+      'rgba(54, 144, 192, 0.6)',
+      'rgba(103, 169, 207, 0.6)',
+      'rgba(153, 201, 226, 0.6)',
+      'rgba(204, 229, 255, 0.6)',
+      'rgba(153, 201, 226, 0.6)',
+      'rgba(103, 169, 207, 0.6)',
+      'rgba(54, 144, 192, 0.6)',
+      'rgba(31, 119, 180, 0.6)',
+      'rgba(17, 94, 147, 0.6)',
+    ]
+  },
+  {
+    name: 'Colorblind Safe',
+    colors: [
+      'rgba(0, 107, 164, 0.6)',
+      'rgba(255, 128, 14, 0.6)',
+      'rgba(171, 171, 171, 0.6)',
+      'rgba(89, 89, 89, 0.6)',
+      'rgba(95, 158, 209, 0.6)',
+      'rgba(200, 82, 0, 0.6)',
+      'rgba(137, 137, 137, 0.6)',
+      'rgba(162, 200, 236, 0.6)',
+      'rgba(255, 188, 121, 0.6)',
+      'rgba(207, 207, 207, 0.6)',
+    ]
+  }
+];
+
 const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, question }: ChartModalProps) => {
+  // State for chart data and options
   const [chartData, setChartData] = useState<any>(null);
   const [chartOptions, setChartOptions] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [questionContext, setQuestionContext] = useState<string | null>(null);
   
-  // New state variables for enhanced features
+  // Chart appearance and behavior state
   const [chartType, setChartType] = useState<'bar' | 'line' | 'pie'>(initialChartType);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [selectedColorIndex, setSelectedColorIndex] = useState<number | null>(null);
@@ -67,7 +151,8 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
   const [filteredData, setFilteredData] = useState<any>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   
-  // Add new state variables for chart customization
+  // Chart customization state
+  const [selectedTheme, setSelectedTheme] = useState<string>('Default');
   const [showDataLabels, setShowDataLabels] = useState<boolean>(true);
   const [chartTitle, setChartTitle] = useState<string>('');
   const [xAxisLabel, setXAxisLabel] = useState<string>('');
@@ -84,323 +169,10 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
     scale: 1
   });
 
-  useEffect(() => {
-    if (!data) {
-      setError('No data available for visualization');
-      return;
-    }
-    
-    // Extract questionContext if available
-    if (data.questionContext) {
-      setQuestionContext(data.questionContext);
-    } else {
-      setQuestionContext(null);
-    }
-
-    try {
-      // Log the data structure to help with debugging
-      console.log('Chart data received:', data);
-      
-      // Check if data is already in the format returned by the LLM chart data endpoint
-      if (data.chartData && data.title) {
-        // Data is already processed by LLM
-        const chartDataConfig = data.chartData;
-        
-        // Ensure colors are applied to the datasets
-        if (chartDataConfig.datasets && chartDataConfig.datasets.length > 0) {
-          // Apply colors to each dataset if they don't already have colors
-          chartDataConfig.datasets.forEach((dataset: any, index: number) => {
-            if (!dataset.backgroundColor) {
-              if (chartType === 'pie' || chartType === 'bar') {
-                dataset.backgroundColor = generateColors(chartDataConfig.labels.length, chartType);
-              } else {
-                dataset.backgroundColor = 'rgba(75, 192, 192, 0.6)';
-                dataset.borderColor = 'rgba(75, 192, 192, 1)';
-              }
-            }
-          });
-        }
-        
-        // Create chart options with the LLM-generated title
-        const chartOptionsConfig = {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              position: legendPosition as const,
-              display: true,
-              labels: {
-                font: {
-                  size: 12
-                },
-                generateLabels: function(chart: any) {
-                  const dataset = chart.data.datasets[0];
-                  if (chartType === 'pie' || chartType === 'bar') {
-                    return chart.data.labels.map((label: string, index: number) => ({
-                      text: label,
-                      fillStyle: Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor,
-                      hidden: false,
-                      index: index
-                    }));
-                  } else {
-                    return chart.data.labels.map((label: string, index: number) => ({
-                      text: label,
-                      fillStyle: Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor,
-                      strokeStyle: Array.isArray(dataset.borderColor) ? dataset.borderColor[index] : dataset.borderColor,
-                      lineWidth: dataset.borderWidth,
-                      hidden: false
-                    }));
-                  }
-                }
-              }
-            },
-            title: {
-              display: true,
-              text: chartTitle || data.title,
-              font: {
-                size: 16,
-              },
-            },
-            tooltip: {
-              callbacks: {
-                footer: function(tooltipItems: any) {
-                  return data.insights ? data.insights : '';
-                }
-              }
-            },
-            datalabels: {
-              display: showDataLabels,
-              align: chartType === 'pie' ? 'center' : 'end',
-              anchor: chartType === 'pie' ? 'center' : 'end',
-              color: function(context: any) {
-                return chartType === 'pie' ? 'white' : '#666';
-              },
-              font: {
-                size: 12,
-                weight: 'bold'
-              },
-              formatter: function(value: any) {
-                return value.toString();
-              },
-              padding: 6
-            }
-          },
-          scales: chartType !== 'pie' ? {
-            x: {
-              title: {
-                display: true,
-                text: xAxisLabel,
-                font: {
-                  size: 14,
-                },
-              },
-            },
-            y: {
-              title: {
-                display: true,
-                text: yAxisLabel,
-                font: {
-                  size: 14,
-                },
-              },
-            },
-          } : undefined,
-        };
-
-        setChartData(chartDataConfig);
-        setChartOptions(chartOptionsConfig);
-        setFilteredData(chartDataConfig);
-        setError(null);
-        return;
-      }
-      
-      // Check if data contains both results and answer from LLM
-      if (data.results && data.answer) {
-        console.log('Using data with natural language answer for visualization');
-        // We'll process the raw results, but the chart generation has already
-        // taken the natural language answer into account on the server side
-        const processedData = data.results;
-        if (Array.isArray(processedData)) {
-          // Continue with normal processing using the results array
-        } else {
-          setError('Invalid data structure: results is not an array');
-          return;
-        }
-      }
-      
-      // If not LLM-processed data, handle raw data as before
-      let processedData: any[] = [];
-      
-      // Handle different data structures
-      if (Array.isArray(data)) {
-        // Direct array
-        processedData = data;
-      } else if (data.results && Array.isArray(data.results)) {
-        // Nested in results property
-        processedData = data.results;
-      } else if (typeof data === 'object' && data !== null) {
-        // Convert object to array if it's not already an array
-        processedData = [data];
-      }
-      
-      // Handle case where data might be an array of arrays (e.g., from SQL results)
-      if (Array.isArray(processedData) && processedData.length > 0 && Array.isArray(processedData[0])) {
-        // Convert array of arrays to array of objects
-        const headers = processedData[0];
-        processedData = processedData.slice(1).map(row => {
-          const obj: Record<string, any> = {};
-          headers.forEach((header: string, index: number) => {
-            obj[header] = row[index];
-          });
-          return obj;
-        });
-      }
-      
-      // Ensure we have data to work with
-      if (processedData.length === 0) {
-        setError('No data available for visualization after processing');
-        return;
-      }
-      
-      // Extract column names from the first data object
-      const columns = Object.keys(processedData[0]);
-      
-      // For charts, we typically need at least two columns (labels and values)
-      if (columns.length < 2) {
-        setError('Data must have at least two columns for visualization');
-        return;
-      }
-
-      // Determine which columns to use for labels and data
-      // By default, use the first column for labels and second for data
-      const labelColumn = columns[0];
-      const dataColumn = columns[1];
-      
-      // Try to find numeric columns for data if available
-      let numericColumn = dataColumn;
-      for (let i = 1; i < columns.length; i++) {
-        const col = columns[i];
-        const sampleValue = processedData[0][col];
-        if (typeof sampleValue === 'number' || !isNaN(Number(sampleValue))) {
-          numericColumn = col;
-          break;
-        }
-      }
-
-      // Extract labels and data values
-      const labels = processedData.map(item => item[labelColumn]);
-      const values = processedData.map(item => {
-        const val = item[numericColumn];
-        return typeof val === 'number' ? val : Number(val) || 0;
-      });
-
-      // Generate a title based on the question
-      const title = generateChartTitle(question, chartType, labelColumn, numericColumn);
-
-      // Create chart data structure
-      const colors = generateColors(processedData.length, chartType);
-      const chartDataConfig = {
-        labels,
-        datasets: [
-          {
-            label: numericColumn,
-            data: values,
-            backgroundColor: chartType === 'line' ? colors.map(color => color.replace('0.6)', '0.2)')) : colors,
-            borderColor: chartType === 'line' ? colors : undefined,
-            borderWidth: 1,
-          },
-        ],
-      };
-
-      // Create chart options
-      const chartOptionsConfig = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: legendPosition as const,
-            display: true,
-            labels: {
-              font: {
-                size: 12
-              },
-              generateLabels: function(chart: any) {
-                const dataset = chart.data.datasets[0];
-                if (chartType === 'pie' || chartType === 'bar') {
-                  return chart.data.labels.map((label: string, index: number) => ({
-                    text: label,
-                    fillStyle: Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor,
-                    hidden: false,
-                    index: index
-                  }));
-                } else {
-                  return chart.data.labels.map((label: string, index: number) => ({
-                    text: label,
-                    fillStyle: Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor,
-                    strokeStyle: Array.isArray(dataset.borderColor) ? dataset.borderColor[index] : dataset.borderColor,
-                    lineWidth: dataset.borderWidth,
-                    hidden: false
-                  }));
-                }
-              }
-            }
-          },
-          title: {
-            display: true,
-            text: chartTitle || title,
-            font: {
-              size: 16,
-            },
-          },
-        },
-        scales: chartType !== 'pie' ? {
-          x: {
-            title: {
-              display: true,
-              text: xAxisLabel,
-              font: {
-                size: 14,
-              },
-            },
-          },
-          y: {
-            title: {
-              display: true,
-              text: yAxisLabel,
-              font: {
-                size: 14,
-              },
-            },
-          },
-        } : undefined,
-      };
-
-      setChartData(chartDataConfig);
-      setChartOptions(chartOptionsConfig);
-      setFilteredData(chartDataConfig);
-      setError(null);
-    } catch (err) {
-      console.error('Error preparing chart data:', err);
-      setError('Failed to prepare chart data: ' + (err instanceof Error ? err.message : String(err)));
-    }
-  }, [data, chartType, question]);
-
-  // Generate chart title based on the question and data
-  const generateChartTitle = (question: string, chartType: string, labelColumn: string, dataColumn: string) => {
-    // If the question contains a chart request, use it as the title
-    if (question.toLowerCase().includes('chart') || 
-        question.toLowerCase().includes('graph') || 
-        question.toLowerCase().includes('plot')) {
-      return question;
-    }
-    
-    // Otherwise, generate a title based on the chart type and columns
-    return `${chartType.charAt(0).toUpperCase() + chartType.slice(1)} Chart of ${dataColumn} by ${labelColumn}`;
-  };
-
-  // Generate colors for chart elements
-  const generateColors = (count: number, type: string) => {
-    const baseColors = [
+  // Function to generate colors for chart elements
+  const generateColors = useCallback((count: number, chartType: 'bar' | 'line' | 'pie'): string[] | string => {
+    // Default color palette
+    const defaultColors = [
       'rgba(75, 192, 192, 0.6)',
       'rgba(255, 99, 132, 0.6)',
       'rgba(54, 162, 235, 0.6)',
@@ -410,16 +182,87 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
       'rgba(199, 199, 199, 0.6)',
       'rgba(83, 102, 255, 0.6)',
       'rgba(78, 129, 188, 0.6)',
-      'rgba(225, 99, 99, 0.6)',
+      'rgba(225, 99, 99, 0.6)'
     ];
+    
+    if (chartType === 'line') return defaultColors[0];
+    
+    return Array.from({ length: count }, (_, i) => defaultColors[i % defaultColors.length]);
+  }, []);
 
-    // For all chart types, we need one color per data point
-    // This ensures consistent legend colors across all chart types
-    return Array.from({ length: count }, (_, i) => baseColors[i % baseColors.length]);
-  };
+  // Chart options configuration
+  const chartOptionsConfig = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    transitions: {
+      active: {
+        animation: {
+          duration: 0
+        }
+      }
+    },
+    plugins: {
+      title: {
+        display: true,
+        text: '',
+        font: { size: 16 }
+      },
+      datalabels: {
+        display: true,
+        align: 'end',
+        anchor: 'end',
+        color: '#666',
+        font: { size: 12, weight: 'bold' },
+        formatter: (value: any) => value?.toString() || ''
+      },
+      legend: {
+        position: 'top',
+        display: true,
+        labels: {
+          font: { size: 12 },
+          generateLabels: (chart: any) => {
+            const datasets = chart.data.datasets;
+            const labels = chart.data.labels;
+            if (!datasets.length) return [];
+            const dataset = datasets[0];
+            return labels.map((label: string, i: number) => ({
+              text: label,
+              fillStyle: Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[i] : dataset.backgroundColor,
+              hidden: false,
+              lineCap: dataset.borderCapStyle,
+              lineDash: dataset.borderDash,
+              lineDashOffset: dataset.borderDashOffset,
+              lineJoin: dataset.borderJoinStyle,
+              lineWidth: dataset.borderWidth,
+              strokeStyle: Array.isArray(dataset.borderColor) ? dataset.borderColor[i] : dataset.borderColor,
+              pointStyle: dataset.pointStyle,
+              rotation: 0
+            }));
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: {
+          display: true,
+          text: '',
+          font: { size: 14 }
+        }
+      },
+      y: {
+        title: {
+          display: true,
+          text: '',
+          font: { size: 14 }
+        }
+      }
+    }
+  }), []);
 
-  // Handle color change for a specific dataset or data point
-  const handleColorChange = (color: string) => {
+  // Color change handler
+  const handleColorChange = useCallback((color: string) => {
     setSelectedColor(color);
     
     if (selectedColorIndex !== null && chartData) {
@@ -444,7 +287,7 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
       } else if (chartType === 'line') {
         // For line charts, update the specific point color
         newChartData.datasets = newChartData.datasets.map((dataset: any) => {
-          const newBorderColor = Array.isArray(dataset.borderColor) 
+          const newBorderColor = Array.isArray(dataset.borderColor)
             ? dataset.borderColor.map((c: string, i: number) => i === selectedColorIndex ? color : c)
             : color;
           const newBackgroundColor = Array.isArray(dataset.backgroundColor)
@@ -462,609 +305,464 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
       setChartData(newChartData);
       setFilteredData(newChartData);
     }
-  };
+  }, [selectedColorIndex, chartData, chartType]);
   
-  // Handle color button click
-  const handleColorButtonClick = (index: number, event: React.MouseEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    setColorPickerPosition({
-      top: rect.bottom + window.scrollY + 5,
-      left: rect.left + window.scrollX
-    });
-    setSelectedColorIndex(index);
-    setSelectedColor(
-      Array.isArray(chartData.datasets[0].backgroundColor) 
-        ? chartData.datasets[0].backgroundColor[index] 
-        : chartData.datasets[0].backgroundColor
+  // Memoize the theme selector component to prevent unnecessary re-renders
+  const renderThemeSelector = useCallback(() => {
+    return (
+      <div className="theme-selection">
+        <label htmlFor="theme-select">Color Theme:</label>
+        <select
+          id="theme-select"
+          className="theme-dropdown"
+          value={selectedTheme}
+          onChange={(e) => setSelectedTheme(e.target.value)}
+        >
+          {colorThemes.map((theme) => (
+            <option key={theme.name} value={theme.name}>
+              {theme.name}
+            </option>
+          ))}
+        </select>
+      </div>
     );
-    setShowColorPicker(true);
-  };
+  }, [selectedTheme]);
 
-  // Handle chart type change
-  const handleChartTypeChange = (newType: 'bar' | 'line' | 'pie') => {
-    setChartType(newType);
-  };
-
-  // Handle exporting chart as image
-  const handleExportChart = () => {
-    setShowExportOptions(true);
-  };
-  
-  // Update chart options when customization settings change
-  useEffect(() => {
-    if (chartData) {
-      // Update CSS custom properties when chart dimensions change
-      if (chartRef.current) {
-        chartRef.current.style.setProperty('--chart-height', `${chartHeight}px`);
-        chartRef.current.style.setProperty('--chart-width', `${chartWidth}%`);
-      }
-
-      const chartOptionsConfig = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: legendPosition !== 'none' ? (legendPosition as const) : 'top',
-            display: legendPosition !== 'none',
-            labels: {
-              font: {
-                size: 12
-              },
-              generateLabels: function(chart: any) {
-                const dataset = chart.data.datasets[0];
-                if (chartType === 'pie' || chartType === 'bar') {
-                  return chart.data.labels.map((label: string, index: number) => ({
-                    text: label,
-                    fillStyle: Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor,
-                    hidden: false,
-                    index: index
-                  }));
-                } else {
-                  return chart.data.labels.map((label: string, index: number) => ({
-                    text: label,
-                    fillStyle: Array.isArray(dataset.backgroundColor) ? dataset.backgroundColor[index] : dataset.backgroundColor,
-                    strokeStyle: Array.isArray(dataset.borderColor) ? dataset.borderColor[index] : dataset.borderColor,
-                    lineWidth: dataset.borderWidth,
-                    hidden: false
-                  }));
-                }
-              }
-            }
-          },
-          title: {
-            display: true,
-            text: chartTitle || (data.title || generateChartTitle(question, chartType, '', '')),
-            font: {
-              size: 16,
-            },
-          },
-          tooltip: {
-            callbacks: {
-              footer: function(tooltipItems: any) {
-                return data.insights ? data.insights : '';
-              },
-              label: function(context: any) {
-                let label = context.dataset.label || '';
-                if (label) {
-                  label += ': ';
-                }
-                if (context.parsed.y !== null) {
-                  label += context.parsed.y;
-                }
-                return label;
-              }
-            }
-          },
-          datalabels: {
-            display: showDataLabels,
-            align: chartType === 'pie' ? 'center' : 'end',
-            anchor: chartType === 'pie' ? 'center' : 'end',
-            color: function(context: any) {
-              return chartType === 'pie' ? 'white' : '#666';
-            },
-            font: {
-              size: 12,
-              weight: 'bold'
-            },
-            formatter: function(value: any) {
-              return value.toString();
-            },
-            padding: 6
-          }
-        },
-        scales: chartType !== 'pie' ? {
-          x: {
-            title: {
-              display: true,
-              text: xAxisLabel,
-              font: {
-                size: 14,
-              },
-            },
-          },
-          y: {
-            title: {
-              display: true,
-              text: yAxisLabel,
-              font: {
-                size: 14,
-              },
-            },
-          },
-        } : undefined,
-      };
-
-      setChartOptions(chartOptionsConfig);
+  // Render the appropriate chart based on chartType
+  const renderChart = useMemo(() => {
+    if (!filteredData || !chartOptions) {
+      return <div className="chart-error">No chart data available</div>;
     }
-  }, [chartTitle, xAxisLabel, yAxisLabel, legendPosition, chartType, data, question, showDataLabels, chartHeight, chartWidth]);
   
-  // Add fileName state
-  const [fileName, setFileName] = useState<string>('');
-  const [fileTags, setFileTags] = useState<string>('');
-  const [saveLocation, setSaveLocation] = useState<string>('Downloads');
-
-  useEffect(() => {
-    // Set default filename when export options change
-    setFileName(`chart-${new Date().toISOString().replace(/:/g, '_')}`);
-  }, [exportOptions.format]);
-
-  const executeExport = async () => {
-    if (!chartRef.current) return;
-
-    // Set background color based on transparency option
-    const originalStyle = chartRef.current.style.backgroundColor;
-    chartRef.current.style.backgroundColor = exportOptions.transparent ? 'transparent' : 'white';
-    
     try {
-      // Determine scale factor based on resolution
-      let scaleFactor = exportOptions.scale;
-      if (exportOptions.resolution === 'high') {
-        scaleFactor = 2;
-      } else if (exportOptions.resolution === 'print') {
-        scaleFactor = 3;
+      // Validate chart data structure before rendering
+      if (!filteredData.datasets || !Array.isArray(filteredData.datasets) || filteredData.datasets.length === 0) {
+        console.error('Invalid chart data structure: missing or empty datasets');
+        return <div className="chart-error">Invalid chart data structure</div>;
       }
-      
-      // Choose export method based on format
-      let exportPromise;
-      const imageOptions = {
-        quality: exportOptions.compression,
-        pixelRatio: scaleFactor
-      };
-      
-      switch (exportOptions.format) {
-        case 'jpeg':
-          exportPromise = htmlToImage.toJpeg(chartRef.current, imageOptions);
-          break;
-        case 'svg':
-          exportPromise = htmlToImage.toSvg(chartRef.current);
-          break;
-        case 'pdf':
-          exportPromise = htmlToImage.toPng(chartRef.current, imageOptions);
-          break;
-        case 'png':
-        default:
-          exportPromise = htmlToImage.toPng(chartRef.current, imageOptions);
-          break;
+  
+      if (!filteredData.labels || !Array.isArray(filteredData.labels)) {
+        console.error('Invalid chart data structure: missing or invalid labels');
+        return <div className="chart-error">Invalid chart data structure</div>;
       }
-
-      const dataUrl = await exportPromise;
-      
-      // Try to use the File System Access API if available
-      if ('showSaveFilePicker' in window) {
-        try {
-          const handle = await window.showSaveFilePicker({
-            suggestedName: `${fileName || 'chart'}.${exportOptions.format}`,
-            types: [{
-              description: 'Chart Image',
-              accept: {
-                'image/png': ['.png'],
-                'image/jpeg': ['.jpg', '.jpeg'],
-                'image/svg+xml': ['.svg'],
-                'application/pdf': ['.pdf']
-              }
-            }]
-          });
-          
-          // Convert data URL to Blob
-          const response = await fetch(dataUrl);
-          const blob = await response.blob();
-          
-          // Write the file
-          const writable = await handle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-        } catch (err) {
-          if (err.name !== 'AbortError') {
-            console.error('Error using File System Access API:', err);
-            // Fall back to traditional download
-            const link = document.createElement('a');
-            link.download = `${fileName || 'chart'}.${exportOptions.format}`;
-            link.href = dataUrl;
-            link.click();
-          }
+  
+      // Skip detailed validation in render cycle for performance
+      // Just check the first dataset to ensure basic structure
+      if (!filteredData.datasets[0].data || !Array.isArray(filteredData.datasets[0].data)) {
+        console.error('Invalid dataset structure: data is not an array');
+        return <div className="chart-error">Invalid dataset structure</div>;
+      }
+  
+      // Use React.memo or lazy initialization for chart components if needed
+      const chartProps = {
+        data: filteredData,
+        options: {
+          ...chartOptions,
+          animation: false,
+          responsive: true,
+          maintainAspectRatio: false
         }
-      } else {
-        // Fall back to traditional download for unsupported browsers
-        const link = document.createElement('a');
-        link.download = `${fileName || 'chart'}.${exportOptions.format}`;
-        link.href = dataUrl;
-        link.click();
+      };
+  
+      // Render the appropriate chart based on chartType
+      switch (chartType) {
+        case 'bar':
+          return <Bar {...chartProps} />;
+        case 'line':
+          return <Line {...chartProps} />;
+        case 'pie':
+          return <Pie {...chartProps} />;
+        default:
+          console.error('Unsupported chart type:', chartType);
+          return <div className="chart-error">Unsupported chart type</div>;
       }
     } catch (error) {
-      console.error('Error exporting chart:', error);
-    } finally {
-      // Restore original background color
-      if (chartRef.current) {
-        chartRef.current.style.backgroundColor = originalStyle;
-      }
-      setShowExportOptions(false);
+      console.error('Error rendering chart:', error);
+      return <div className="chart-error">Failed to render chart: {error instanceof Error ? error.message : 'Unknown error'}</div>;
     }
-  };
-  
-  const handleExportOptionChange = (option: keyof ExportOptions, value: any) => {
-    setExportOptions(prev => ({
-      ...prev,
-      [option]: value
-    }));
-  };
+  }, [filteredData, chartOptions, chartType]);
 
-  // Handle data filtering
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDataFilter(e.target.value);
-    
-    if (!chartData) return;
-    
-    const filterValue = e.target.value.toLowerCase();
-    if (!filterValue) {
-      setFilteredData(chartData);
+  // Effect to update chart options when customization values change
+  useEffect(() => {
+    if (chartOptions) {
+      setChartOptions(prevOptions => ({
+        ...prevOptions,
+        plugins: {
+          ...prevOptions.plugins,
+          title: {
+            ...prevOptions.plugins.title,
+            display: true,
+            text: chartTitle
+          },
+          legend: {
+            ...prevOptions.plugins.legend,
+            display: legendPosition !== 'none',
+            position: legendPosition
+          },
+          datalabels: {
+            ...prevOptions.plugins.datalabels,
+            display: showDataLabels
+          }
+        },
+        scales: {
+          x: {
+            ...prevOptions.scales.x,
+            title: {
+              ...prevOptions.scales.x.title,
+              display: true,
+              text: xAxisLabel
+            }
+          },
+          y: {
+            ...prevOptions.scales.y,
+            title: {
+              ...prevOptions.scales.y.title,
+              display: true,
+              text: yAxisLabel
+            }
+          }
+        }
+      }));
+    }
+  }, [chartTitle, xAxisLabel, yAxisLabel, legendPosition, showDataLabels]);
+
+  useEffect(() => {
+    if (!data) {
+      console.log('ChartModal: No data provided');
+      setError('No data available for visualization');
       return;
     }
     
-    // Create a filtered version of the chart data
-    const newFilteredData = { ...chartData };
-    const filteredLabels = chartData.labels.filter((label: string, index: number) => 
-      label.toString().toLowerCase().includes(filterValue)
-    );
-    
-    const filteredIndices = chartData.labels.map((label: string, index: number) => 
-      label.toString().toLowerCase().includes(filterValue) ? index : -1
-    ).filter((index: number) => index !== -1);
-    
-    newFilteredData.labels = filteredLabels;
-    
-    // Filter each dataset's data based on the filtered indices
-    newFilteredData.datasets = chartData.datasets.map((dataset: any) => ({
-      ...dataset,
-      data: filteredIndices.map((index: number) => dataset.data[index]),
-      backgroundColor: Array.isArray(dataset.backgroundColor) 
-        ? filteredIndices.map((index: number) => dataset.backgroundColor[index])
-        : dataset.backgroundColor
-    }));
-    
-    setFilteredData(newFilteredData);
-  };
+    try {
+      // Extract questionContext if available
+      if (data.questionContext) {
+        setQuestionContext(data.questionContext);
+      } else {
+        setQuestionContext(null);
+      }
 
-  if (!isOpen) return null;
+      // Validate and process the chart data
+      const chartDataConfig = data.chartData || data;
+      
+      // Ensure the chart data has the required structure
+      if (!chartDataConfig.datasets || !Array.isArray(chartDataConfig.datasets)) {
+        throw new Error('Invalid chart data: missing or invalid datasets');
+      }
 
+      if (!chartDataConfig.labels || !Array.isArray(chartDataConfig.labels)) {
+        throw new Error('Invalid chart data: missing or invalid labels');
+      }
+
+      // Optimize dataset processing - avoid unnecessary operations
+      let needsNewDatasets = false;
+      const validatedDatasets = chartDataConfig.datasets.map((dataset, index) => {
+        if (!Array.isArray(dataset.data)) {
+          throw new Error(`Invalid dataset at index ${index}: data is not an array`);
+        }
+
+        // Only apply colors if needed - avoid unnecessary object creation
+        if (!dataset.backgroundColor) {
+          needsNewDatasets = true;
+          return {
+            ...dataset,
+            backgroundColor: generateColors(chartDataConfig.labels.length, chartType)
+          };
+        }
+        
+        return dataset;
+      });
+
+      // Create a new object only if needed - avoid unnecessary re-renders
+      const processedChartData = needsNewDatasets 
+        ? { ...chartDataConfig, datasets: validatedDatasets }
+        : chartDataConfig;
+
+      // Batch state updates to reduce renders
+      setChartData(processedChartData);
+      setChartOptions({
+        ...chartOptionsConfig,
+        animation: false,
+        transitions: {
+          active: {
+            animation: {
+              duration: 0
+            }
+          }
+        }
+      });
+      setFilteredData(processedChartData);
+      setError(null);
+    } catch (err) {
+      console.error('Error processing chart data:', err);
+      setError(err instanceof Error ? err.message : 'Failed to process chart data');
+      setChartData(null);
+      setChartOptions(null);
+      setFilteredData(null);
+    }
+  }, [data, chartType, generateColors, chartOptionsConfig]);
+
+  // Function to handle export
+  const handleExport = useCallback(() => {
+    setShowExportOptions(true);
+  }, []);
+
+  // Function to toggle advanced options
+  const toggleAdvancedOptions = useCallback(() => {
+    setShowAdvancedOptions(!showAdvancedOptions);
+  }, [showAdvancedOptions]);
+
+  // Effect to update chart colors when theme changes
+  useEffect(() => {
+    if (chartData && filteredData) {
+      const selectedThemeColors = colorThemes.find(theme => theme.name === selectedTheme)?.colors || [];
+      
+      const newChartData = { ...chartData };
+      newChartData.datasets = newChartData.datasets.map((dataset: any) => {
+        if (chartType === 'line') {
+          return {
+            ...dataset,
+            borderColor: selectedThemeColors[0],
+            backgroundColor: selectedThemeColors[0].replace(')', ', 0.2)')
+          };
+        } else {
+          return {
+            ...dataset,
+            backgroundColor: Array.isArray(dataset.data)
+              ? dataset.data.map((_: any, i: number) => selectedThemeColors[i % selectedThemeColors.length])
+              : selectedThemeColors[0]
+          };
+        }
+      });
+
+      setChartData(newChartData);
+      setFilteredData(newChartData);
+    }
+  }, [selectedTheme, chartType]);
+
+  // Return the component JSX
   return (
     <div className="chart-modal-overlay">
-      <div className="chart-modal">
-        <div className="chart-modal-header">
-          <h2>Data Visualization</h2>
-          <button className="close-button" onClick={onClose}>×</button>
-        </div>
+      <div className={`chart-modal ${isOpen ? 'open' : ''}`}>
         <div className="chart-modal-content">
-          {questionContext && (
-            <div className="chart-context">
-              <h3>Context</h3>
-              <p>{questionContext}</p>
+          <div className="chart-modal-header">
+            <h2>Chart Visualization</h2>
+            <button className="close-button" onClick={onClose}>×</button>
+          </div>
+          
+          <div className="chart-controls">
+            <div className="chart-type-selector">
+              <label>Chart Type:</label>
+              <div className="chart-type-buttons">
+                <button 
+                  className={chartType === 'bar' ? 'active' : ''}
+                  onClick={() => setChartType('bar')}
+                >
+                  Bar
+                </button>
+                <button 
+                  className={chartType === 'line' ? 'active' : ''}
+                  onClick={() => setChartType('line')}
+                >
+                  Line
+                </button>
+                <button 
+                  className={chartType === 'pie' ? 'active' : ''}
+                  onClick={() => setChartType('pie')}
+                >
+                  Pie
+                </button>
+              </div>
             </div>
-          )}
-          {error ? (
-            <div className="chart-error">{error}</div>
-          ) : !chartData ? (
-            <div className="chart-loading">Preparing chart...</div>
-          ) : (
-            <>
-              <div className="chart-controls">
-                <div className="chart-type-selector">
-                  <label>Chart Type:</label>
-                  <div className="chart-type-buttons">
-                    <button 
-                      className={chartType === 'bar' ? 'active' : ''}
-                      onClick={() => handleChartTypeChange('bar')}
-                    >
-                      Bar
-                    </button>
-                    <button 
-                      className={chartType === 'line' ? 'active' : ''}
-                      onClick={() => handleChartTypeChange('line')}
-                    >
-                      Line
-                    </button>
-                    <button 
-                      className={chartType === 'pie' ? 'active' : ''}
-                      onClick={() => handleChartTypeChange('pie')}
-                    >
-                      Pie
-                    </button>
-                  </div>
+            
+            <div className="chart-actions">
+              <button onClick={toggleAdvancedOptions}>
+                {showAdvancedOptions ? 'Hide Options' : 'Show Options'}
+              </button>
+              <button onClick={handleExport}>Export</button>
+            </div>
+          </div>
+          
+          {showAdvancedOptions && (
+            <div className="advanced-options">
+              <div className="chart-customization-section">
+                <h4>Chart Customization</h4>
+                {renderThemeSelector()}
+                <div className="option-group">
+                  <label htmlFor="chart-title">Chart Title:</label>
+                  <input
+                    id="chart-title"
+                    type="text"
+                    value={chartTitle}
+                    onChange={(e) => setChartTitle(e.target.value)}
+                    placeholder="Enter chart title"
+                  />
                 </div>
-                
-
-                
-                <div className="chart-actions">
-                  <button onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}>
-                    {showAdvancedOptions ? 'Hide Options' : 'Show Options'}
-                  </button>
-                  <button onClick={handleExportChart}>Export as Image</button>
+                <div className="option-group">
+                  <label htmlFor="x-axis-label">X-Axis Label:</label>
+                  <input
+                    id="x-axis-label"
+                    type="text"
+                    value={xAxisLabel}
+                    onChange={(e) => setXAxisLabel(e.target.value)}
+                    placeholder="Enter x-axis label"
+                  />
+                </div>
+                <div className="option-group">
+                  <label htmlFor="y-axis-label">Y-Axis Label:</label>
+                  <input
+                    id="y-axis-label"
+                    type="text"
+                    value={yAxisLabel}
+                    onChange={(e) => setYAxisLabel(e.target.value)}
+                    placeholder="Enter y-axis label"
+                  />
+                </div>
+                <div className="option-group">
+                  <label htmlFor="legend-position">Legend Position:</label>
+                  <select
+                    id="legend-position"
+                    value={legendPosition}
+                    onChange={(e) => setLegendPosition(e.target.value as 'top' | 'bottom' | 'left' | 'right' | 'none')}
+                  >
+                    <option value="top">Top</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="left">Left</option>
+                    <option value="right">Right</option>
+                    <option value="none">None</option>
+                  </select>
+                </div>
+                <div className="option-group checkbox">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={showDataLabels}
+                      onChange={(e) => setShowDataLabels(e.target.checked)}
+                    />
+                    Show Data Labels
+                  </label>
                 </div>
               </div>
               
-              {/* Export Options Popup */}
-              {showExportOptions && (
-                <div className="export-options-overlay">
-                  <div className="export-options-popup">
-                    <h3>Save As:</h3>
-                    
-                    <div className="export-option">
-                      <input 
-                        type="text" 
-                        value={fileName}
-                        onChange={(e) => setFileName(e.target.value)}
-                        placeholder="Enter filename"
-                        className="filename-input"
-                      />
-                    </div>
-                    
-                    <div className="export-option">
-                      <label>Tags:</label>
-                      <input 
-                        type="text" 
-                        value={fileTags}
-                        onChange={(e) => setFileTags(e.target.value)}
-                        placeholder="Add tags (optional)"
-                        className="tags-input"
-                      />
-                    </div>
-                    
-                    <div className="export-option">
-                      <label>Where:</label>
-                      <div className="location-selector">
-                        <span className="folder-icon">📁</span>
-                        <select 
-                          value={saveLocation}
-                          onChange={(e) => setSaveLocation(e.target.value)}
-                          className="location-dropdown"
-                        >
-                          <option value="Downloads">Downloads</option>
-                          <option value="Documents">Documents</option>
-                          <option value="Desktop">Desktop</option>
-                          <option value="Pictures">Pictures</option>
-                        </select>
-                        <button className="dropdown-button">▼</button>
-                      </div>
-                    </div>
-                    
-                    <div className="export-option">
-                      <label>Format</label>
-                      <select 
-                        value={exportOptions.format}
-                        onChange={(e) => handleExportOptionChange('format', e.target.value)}
-                      >
-                        <option value="png">PNG Image</option>
-                        <option value="jpeg">JPEG Image</option>
-                        <option value="svg">SVG Vector</option>
-                        <option value="pdf">PDF Document</option>
-                      </select>
-                    </div>
-                    
-                    <div className="export-option">
-                      <label>Resolution</label>
-                      <select
-                        value={exportOptions.resolution}
-                        onChange={(e) => handleExportOptionChange('resolution', e.target.value)}
-                      >
-                        <option value="standard">Standard (1x)</option>
-                        <option value="high">High (2x)</option>
-                        <option value="print">Print Quality (3x)</option>
-                      </select>
-                    </div>
-                    
-                    <div className="export-option">
-                      <label>Quality: {Math.round(exportOptions.compression * 100)}%</label>
-                      <input 
-                        type="range" 
-                        min="0.1" 
-                        max="1" 
-                        step="0.1"
-                        value={exportOptions.compression}
-                        onChange={(e) => handleExportOptionChange('compression', parseFloat(e.target.value))}
-                      />
-                    </div>
-                    
-                    <div className="export-option checkbox">
-                      <label>
-                        <input 
-                          type="checkbox"
-                          checked={exportOptions.transparent}
-                          onChange={(e) => handleExportOptionChange('transparent', e.target.checked)}
-                        />
-                        Transparent background
-                      </label>
-                    </div>
-                    
-                    <div className="export-buttons">
-                      <button onClick={() => setShowExportOptions(false)}>Cancel</button>
-                      <button onClick={() => {
-                        if (!fileName.trim()) {
-                          alert('Please enter a file name');
-                          return;
-                        }
-                        executeExport();
-                      }}>Save</button>
-                    </div>
-                  </div>
+              <div className="chart-size-section">
+                <h4>Chart Size</h4>
+                <div className="chart-size-controls">
+                  <label>Height:</label>
+                  <input
+                    type="range"
+                    min="200"
+                    max="800"
+                    value={chartHeight}
+                    onChange={(e) => setChartHeight(parseInt(e.target.value))}
+                  />
+                  <span>{chartHeight}px</span>
                 </div>
-              )}
+                <div className="chart-size-controls">
+                  <label>Width:</label>
+                  <input
+                    type="range"
+                    min="50"
+                    max="100"
+                    value={chartWidth}
+                    onChange={(e) => setChartWidth(parseInt(e.target.value))}
+                  />
+                  <span>{chartWidth}%</span>
+                </div>
+              </div>
               
-              {showAdvancedOptions && (
-                <div className="advanced-options">
-                  <div className="filter-section">
-                    <label htmlFor="data-filter">Filter Data:</label>
-                    <input 
-                      id="data-filter"
-                      type="text" 
-                      value={dataFilter} 
-                      onChange={handleFilterChange} 
-                      placeholder="Type to filter data points..."
-                    />
-                  </div>
-                  
-                  <div className="chart-customization-section">
-                    <h4>Chart Customization</h4>
-                    
-                    <div className="option-group">
-                      <label>Chart Title:</label>
-                      <input
-                        type="text"
-                        value={chartTitle}
-                        onChange={(e) => setChartTitle(e.target.value)}
-                        placeholder="Enter chart title"
-                      />
-                    </div>
-
-                    {chartType !== 'pie' && (
-                      <>
-                        <div className="option-group">
-                          <label>X-Axis Label:</label>
-                          <input
-                            type="text"
-                            value={xAxisLabel}
-                            onChange={(e) => setXAxisLabel(e.target.value)}
-                            placeholder="Enter x-axis label"
-                          />
-                        </div>
-
-                        <div className="option-group">
-                          <label>Y-Axis Label:</label>
-                          <input
-                            type="text"
-                            value={yAxisLabel}
-                            onChange={(e) => setYAxisLabel(e.target.value)}
-                            placeholder="Enter y-axis label"
-                          />
-                        </div>
-                      </>
-                    )}
-
-                    <div className="option-group">
-                      <label>Legend Position:</label>
-                      <select
-                        value={legendPosition}
-                        onChange={(e) => setLegendPosition(e.target.value as 'top' | 'bottom' | 'left' | 'right' | 'none')}
-                      >
-                        <option value="top">Top</option>
-                        <option value="bottom">Bottom</option>
-                        <option value="left">Left</option>
-                        <option value="right">Right</option>
-                        <option value="none">No Legend</option>
-                      </select>
-                    </div>
-
-                    <div className="option-group">
-                      <label>
-                        <input
-                          type="checkbox"
-                          checked={showDataLabels}
-                          onChange={(e) => setShowDataLabels(e.target.checked)}
-                        />
-                        Show Data Values
-                      </label>
-                    </div>
-                  </div>
-                  
-                  <div className="appearance-section">
-                    <div className="chart-size-controls">
-                      <label>Chart Height:</label>
-                      <input 
-                        type="range" 
-                        min="200" 
-                        max="1600" 
-                        value={chartHeight} 
-                        onChange={(e) => {
-                          const newHeight = Number(e.target.value);
-                          setChartHeight(newHeight);
-                          // Update CSS custom property immediately
-                          if (chartRef.current) {
-                            chartRef.current.style.setProperty('--chart-height', `${newHeight}px`);
-                          }
-                        }} 
-                      />
-                      <span>{chartHeight}px</span>
-                    </div>
-                    
-                    <div className="chart-size-controls">
-                      <label>Chart Width:</label>
-                      <input 
-                        type="range" 
-                        min="50" 
-                        max="100" 
-                        value={chartWidth} 
-                        onChange={(e) => {
-                          const newWidth = Number(e.target.value);
-                          setChartWidth(newWidth);
-                          // Update CSS custom property immediately
-                          if (chartRef.current) {
-                            chartRef.current.style.setProperty('--chart-width', `${newWidth}%`);
-                          }
-                        }} 
-                      />
-                      <span>{chartWidth}%</span>
-                    </div>
-                  </div>
-                  
-                  <div className="color-section">
-                    <label>Color Customization:</label>
-                    <div className="color-chips">
-                      {chartData.datasets[0].backgroundColor.map((color: string, index: number) => (
-                        <div
+              <div className="color-section">
+                <h4>Color Customization</h4>
+                <label>Click on a color to customize:</label>
+                <div className="color-chips">
+                  {filteredData && filteredData.datasets && filteredData.datasets[0].backgroundColor && (
+                    Array.isArray(filteredData.datasets[0].backgroundColor) ? 
+                      filteredData.datasets[0].backgroundColor.map((color: string, index: number) => (
+                        <div 
                           key={index}
                           className="color-chip"
                           style={{ backgroundColor: color }}
-                          onClick={(event) => handleColorButtonClick(index, event)}
+                          onClick={(e) => {
+                            setSelectedColorIndex(index);
+                            setSelectedColor(color);
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setColorPickerPosition({
+                              top: rect.bottom + window.scrollY,
+                              left: rect.left + window.scrollX
+                            });
+                            setShowColorPicker(true);
+                          }}
                         >
-                          <span>{chartData.labels[index]}</span>
+                          <span>{filteredData.labels[index]}</span>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                  {showColorPicker && (
-                    <div className="color-picker-container" style={{ top: colorPickerPosition.top, left: colorPickerPosition.left }}>
-                      <HexColorPicker color={selectedColor} onChange={handleColorChange} />
-                      <button onClick={() => setShowColorPicker(false)}>Close</button>
-                    </div>
+                      )) : (
+                        <div 
+                          className="color-chip"
+                          style={{ backgroundColor: filteredData.datasets[0].backgroundColor }}
+                          onClick={(e) => {
+                            setSelectedColorIndex(0);
+                            setSelectedColor(filteredData.datasets[0].backgroundColor);
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setColorPickerPosition({
+                              top: rect.bottom + window.scrollY,
+                              left: rect.left + window.scrollX
+                            });
+                            setShowColorPicker(true);
+                          }}
+                        >
+                          <span>Series Color</span>
+                        </div>
+                      )
                   )}
                 </div>
-              )}
-              
-              <div 
-                ref={chartRef}
-                className="chart-container">
-                {chartType === 'bar' && (
-                  <Bar data={filteredData} options={chartOptions} />
-                )}
-                {chartType === 'line' && (
-                  <Line data={filteredData} options={chartOptions} />
-                )}
-                {chartType === 'pie' && (
-                  <Pie data={filteredData} options={chartOptions} />
+                {showColorPicker && (
+                  <div 
+                    className="color-picker-container"
+                    style={{ top: colorPickerPosition.top, left: colorPickerPosition.left }}
+                  >
+                    <HexColorPicker color={selectedColor} onChange={handleColorChange} />
+                    <button onClick={() => setShowColorPicker(false)}>Apply</button>
+                  </div>
                 )}
               </div>
-            </>
+            </div>
+          )}
+          
+          {error ? (
+            <div className="chart-error">{error}</div>
+          ) : (
+            <div 
+              className="chart-container" 
+              ref={chartRef}
+              style={{ height: `${chartHeight}px`, width: `${chartWidth}%` }}
+            >
+              {renderChart}
+            </div>
           )}
         </div>
       </div>
+      
+      {showExportOptions && (
+        <div className="export-options-overlay">
+          <div className="export-options-popup">
+            <h3>Export Chart</h3>
+            <div className="export-option">
+              <label>Format:</label>
+              <select
+                value={exportOptions.format}
+                onChange={(e) => setExportOptions({...exportOptions, format: e.target.value as 'png' | 'jpeg' | 'svg' | 'pdf'})}
+              >
+                <option value="png">PNG</option>
+                <option value="jpeg">JPEG</option>
+                <option value="svg">SVG</option>
+                <option value="pdf">PDF</option>
+              </select>
+            </div>
+            <div className="export-buttons">
+              <button onClick={() => setShowExportOptions(false)}>Cancel</button>
+              <button>Download</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

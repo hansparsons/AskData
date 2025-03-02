@@ -156,16 +156,29 @@ export class OpenAIService {
 
       if (response.data && response.data.choices && response.data.choices.length > 0) {
         const content = response.data.choices[0].message.content.trim();
-        // Extract JSON from the response
-        const jsonMatch = content.match(/```json\n([\s\S]*)\n```/) || 
-                         content.match(/```([\s\S]*)```/) || 
-                         [null, content];
-        
+        // First try to parse the content directly
         try {
-          return JSON.parse(jsonMatch[1]);
-        } catch (parseError) {
-          console.error('Error parsing JSON from OpenAI response:', parseError);
-          throw new Error('Failed to parse chart data from OpenAI response');
+          return JSON.parse(content);
+        } catch (directParseError) {
+          // If direct parse fails, try to extract JSON from markdown
+          const jsonMatch = content.match(/```json\n([\s\S]*)\n```/) || 
+                           content.match(/```([\s\S]*)```/) || 
+                           [null, content];
+          
+          try {
+            return JSON.parse(jsonMatch[1].trim());
+          } catch (parseError) {
+            console.error('Error parsing JSON from OpenAI response:', parseError);
+            // Provide a fallback chart data structure
+            return {
+              labels: ['No Data'],
+              datasets: [{
+                label: 'Error',
+                data: [0],
+                backgroundColor: 'rgba(255, 99, 132, 0.6)'
+              }]
+            };
+          }
         }
       } else {
         throw new Error('Invalid response from OpenAI API');

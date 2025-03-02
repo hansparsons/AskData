@@ -80,7 +80,7 @@ ollama pull mixtral
 
 ## Usage
 
-1. Open the application in your browser (typically at http://localhost:5173)
+1. Open the application in your browser (typically at http://localhost:5174)
 
 2. Upload data sources:
    - Use the upload button to add Excel files, Word documents, or PDFs

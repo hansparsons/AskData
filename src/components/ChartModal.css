@@ -475,3 +475,34 @@
 .export-buttons button:last-child:hover {
   background: #357abd;
 }
+.theme-selection {
+  margin-bottom: 16px;
+}
+
+.theme-selection label {
+  display: block;
+  margin-bottom: 8px;
+  color: #555;
+  font-size: 0.875rem;
+}
+
+.theme-dropdown {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: white;
+  font-size: 0.875rem;
+  color: #333;
+  cursor: pointer;
+}
+
+.theme-dropdown:hover {
+  border-color: #4a90e2;
+}
+
+.theme-dropdown:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}

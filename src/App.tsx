@@ -285,13 +285,36 @@ function App() {
   }
 
   const handleChartButtonClick = async (type: 'bar' | 'line' | 'pie') => {
-    if (!queryResults) return
-    
-    setChartType(type)
-    setIsLoadingChart(true)
-    setChartData(null)
-    
+    console.log('Chart button clicked:', { type, queryResults })
+    if (!queryResults) {
+      console.log('No query results available')
+      return
+    }
+      
     try {
+      // Log the query results structure
+      console.log('Query results structure:', {
+        isArray: Array.isArray(queryResults),
+        type: typeof queryResults,
+        length: Array.isArray(queryResults) ? queryResults.length : 'N/A',
+        sample: queryResults
+      })
+    
+      // Validate query results structure
+      if (typeof queryResults !== 'object' || !Array.isArray(queryResults)) {
+        throw new Error('Invalid query results format')
+      }
+        
+      setChartType(type)
+      setIsLoadingChart(true)
+      setChartData(null)
+        
+      console.log('Preparing chart data request:', {
+        question: query,
+        includeAnswer: includeAnswerInChart,
+        hasNaturalLanguageAnswer: !!naturalLanguageAnswer
+      })
+    
       const response = await fetch('http://localhost:3000/api/chart-data', {
         method: 'POST',
         headers: {
@@ -304,19 +327,33 @@ function App() {
           selectedModel: selectedModel
         }),
       })
-
+    
       if (!response.ok) {
-        throw new Error('Chart data generation failed')
+        const errorData = await response.json()
+        console.error('Chart data API error:', errorData)
+        throw new Error(errorData.message || 'Chart data generation failed')
       }
-
+    
       const data = await response.json()
+      console.log('Received chart data:', data)
+        
+      // Validate received chart data
+      if (!data || typeof data !== 'object') {
+        console.error('Invalid chart data structure:', data)
+        throw new Error('Invalid chart data received')
+      }
+        
       setChartData(data)
       setShowChartModal(true)
     } catch (error) {
-      console.error('Error generating chart data:', error)
-      // Fall back to using raw query results if chart data generation fails
+      console.error('Detailed chart error:', {
+        error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      })
+      setUploadError(error instanceof Error ? error.message : 'Failed to generate chart')
       setChartData(null)
-      setShowChartModal(true)
+      setShowChartModal(false)
     } finally {
       setIsLoadingChart(false)
     }
