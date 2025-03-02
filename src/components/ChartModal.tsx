@@ -170,7 +170,7 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
   });
 
   // Function to generate colors for chart elements
-  const generateColors = useCallback((count: number, chartType: 'bar' | 'line' | 'pie'): string[] | string => {
+  const generateColors = useCallback((count: number, chartType: 'bar' | 'line' | 'pie'): string[] => {
     // Default color palette
     const defaultColors = [
       'rgba(75, 192, 192, 0.6)',
@@ -185,9 +185,9 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
       'rgba(225, 99, 99, 0.6)'
     ];
     
-    if (chartType === 'line') return defaultColors[0];
-    
+    // Always return an array of colors for all chart types
     return Array.from({ length: count }, (_, i) => defaultColors[i % defaultColors.length]);
+  
   }, []);
 
   // Chart options configuration
@@ -461,11 +461,13 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
         }
 
         // Only apply colors if needed - avoid unnecessary object creation
-        if (!dataset.backgroundColor) {
+        if (!dataset.backgroundColor || (chartType === 'line' && !dataset.borderColor)) {
           needsNewDatasets = true;
+          const colors = generateColors(chartDataConfig.labels.length, chartType);
           return {
             ...dataset,
-            backgroundColor: generateColors(chartDataConfig.labels.length, chartType)
+            backgroundColor: chartType === 'line' ? colors.map(color => color.replace('0.6)', '0.2)')) : colors,
+            ...(chartType === 'line' && { borderColor: colors })
           };
         }
         
@@ -518,18 +520,24 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
       
       const newChartData = { ...chartData };
       newChartData.datasets = newChartData.datasets.map((dataset: any) => {
+        // For all chart types, use the color array
+        const colors = Array.isArray(dataset.data)
+          ? dataset.data.map((_: any, i: number) => selectedThemeColors[i % selectedThemeColors.length])
+          : [selectedThemeColors[0]];
+
         if (chartType === 'line') {
           return {
             ...dataset,
-            borderColor: selectedThemeColors[0],
-            backgroundColor: selectedThemeColors[0].replace(')', ', 0.2)')
+            borderColor: colors,
+            backgroundColor: colors.map(color => color.replace('0.6)', '0.2)')),
+            pointBackgroundColor: colors,
+            pointBorderColor: colors,
+            borderWidth: 2
           };
         } else {
           return {
             ...dataset,
-            backgroundColor: Array.isArray(dataset.data)
-              ? dataset.data.map((_: any, i: number) => selectedThemeColors[i % selectedThemeColors.length])
-              : selectedThemeColors[0]
+            backgroundColor: colors
           };
         }
       });
