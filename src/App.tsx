@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
 import ChartModal from './components/ChartModal'
+import ExportDialog from './components/ExportDialog'
 
 function App() {
   const [dataSources, setDataSources] = useState<Array<{id: number, name: string, type: string}>>([])
@@ -26,6 +27,7 @@ function App() {
   const [openaiApiKey, setOpenaiApiKey] = useState('')
   const [isSettingApiKey, setIsSettingApiKey] = useState(false)
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
+  const [showExportDialog, setShowExportDialog] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -486,7 +488,7 @@ function App() {
           <button 
             className="viz-button" 
             disabled={!queryResults}
-            onClick={() => setShowChartModal(true)}
+            onClick={() => setShowExportDialog(true)}
           >
             Export
           </button>
@@ -515,6 +517,17 @@ function App() {
           chartType={chartType}
           data={chartData || queryResults}
           question={query}
+        />
+      )}
+      
+      {/* Export Dialog */}
+      {showExportDialog && (
+        <ExportDialog
+          isOpen={showExportDialog}
+          onClose={() => setShowExportDialog(false)}
+          sqlQuery={sqlQuery}
+          answer={naturalLanguageAnswer}
+          results={queryResults}
         />
       )}
       

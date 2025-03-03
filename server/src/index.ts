@@ -9,6 +9,7 @@ import { DocumentService } from './services/documentService';
 import { OllamaService } from './services/ollamaService';
 import { OpenAIService } from './services/openaiService';
 import { ModelService } from './services/modelService';
+import { ExportService } from './services/exportService';
 
 // Initialize Express app
 const app = express();
@@ -234,6 +235,40 @@ app.post('/api/set-openai-key', async (req: Request, res: Response) => {
     console.error('Error setting OpenAI API key:', error);
     res.status(500).json({ 
       error: error instanceof Error ? error.message : 'Failed to set OpenAI API key. Please try again.'
+    });
+  }
+});
+
+// Export data endpoint
+app.post('/api/export', async (req: Request, res: Response) => {
+  try {
+    const { components, formats, data } = req.body;
+    
+    if (!components || !formats || !data) {
+      return res.status(400).json({ error: 'Missing required export parameters' });
+    }
+    
+    const exportOptions = {
+      components,
+      formats
+    };
+    
+    const exportData = {
+      answer: data.answer || '',
+      sqlQuery: data.sqlQuery || '',
+      results: data.results || []
+    };
+    
+    const exportService = new ExportService();
+    const exportBuffer = await exportService.exportData(exportOptions, exportData);
+    
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename=export.zip');
+    res.send(exportBuffer);
+  } catch (error) {
+    console.error('Export error:', error);
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Failed to export data. Please try again.'
     });
   }
 });
