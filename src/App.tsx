@@ -566,6 +566,16 @@ function App() {
           </div>
         </div>
       )}
+
+      {showExportDialog && (
+        <ExportDialog
+          isOpen={showExportDialog}
+          onClose={() => setShowExportDialog(false)}
+          sqlQuery={sqlQuery}
+          answer={naturalLanguageAnswer}
+          results={queryResults}
+        />
+      )}
     </div>
   )
 }

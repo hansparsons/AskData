@@ -10,6 +10,11 @@ AskData is a powerful data analysis application that enables data analysts to qu
 - **Natural Language Querying**: Ask questions about your data in plain English.
 - **SQL Generation**: Automatically generates SQL queries based on your questions.
 - **Data Visualization**: Create bar charts, line charts, and pie charts from your query results.
+- **Data Grid View**: View and analyze your query results in a structured, interactive grid format.
+- **Advanced Export Options**: Export your data, queries, and answers in multiple formats:
+  - Results: Excel, CSV, TSV, JSON
+  - SQL Queries: SQL, TXT
+  - Answers: TXT, PDF, Microsoft Word
 - **Unified Data Interface**: All data sources are converted to a SQL-like format for consistent querying.
 - **Modern UI**: Clean, intuitive interface with a chat-like experience for data interaction.
 
@@ -93,22 +98,35 @@ ollama pull mixtral
 
 5. Review the generated SQL query and confirm execution
 
-6. View the results as text or visualizations
+6. View and interact with your results:
+   - Read the natural language answer
+   - Examine the raw data in the results section
+   - View the data in the interactive grid view
+   - Create visualizations (bar, line, or pie charts)
+   - Export results in your preferred format
 
 ## Building for Production
 
 To build the application for production:
 
+1. Build the frontend:
 ```bash
+cd AskData
 npm run build
 ```
 
-The built files will be in the `dist` directory and can be served using any static file server.
+2. Build the backend:
+```bash
+cd server
+npm run build
+```
 
-## License
-
-[Add license information here]
+3. Deploy the built files to your production server
 
 ## Contributing
 
-[Add contribution guidelines here]
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
