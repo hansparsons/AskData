@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import './ChartModal.css';
 import {
   Chart as ChartJS,
@@ -128,8 +128,186 @@ const colorThemes: ColorTheme[] = [
       'rgba(255, 188, 121, 0.6)',
       'rgba(207, 207, 207, 0.6)',
     ]
+  },
+  {
+    name: 'Material Design',
+    colors: [
+      'rgba(98, 0, 238, 0.6)',
+      'rgba(3, 218, 198, 0.6)',
+      'rgba(255, 2, 102, 0.6)',
+      'rgba(55, 0, 179, 0.6)',
+      'rgba(1, 135, 134, 0.6)',
+      'rgba(176, 0, 32, 0.6)',
+      'rgba(255, 222, 3, 0.6)',
+      'rgba(3, 169, 244, 0.6)',
+      'rgba(76, 175, 80, 0.6)',
+      'rgba(255, 152, 0, 0.6)',
+    ]
+  },
+  {
+    name: 'Professional and Balanced',
+    colors: [
+      'rgba(78, 121, 167, 0.6)',
+      'rgba(242, 142, 43, 0.6)',
+      'rgba(225, 87, 89, 0.6)',
+      'rgba(118, 183, 178, 0.6)',
+      'rgba(89, 161, 79, 0.6)',
+      'rgba(237, 201, 73, 0.6)',
+      'rgba(175, 122, 161, 0.6)',
+      'rgba(255, 157, 167, 0.6)',
+      'rgba(156, 117, 95, 0.6)',
+      'rgba(186, 176, 172, 0.6)',
+    ]
+  },
+  {
+    name: 'Classic and Distinct',
+    colors: [
+      'rgba(31, 119, 180, 0.6)',
+      'rgba(255, 127, 14, 0.6)',
+      'rgba(44, 160, 44, 0.6)',
+      'rgba(214, 39, 40, 0.6)',
+      'rgba(148, 103, 189, 0.6)',
+      'rgba(140, 86, 75, 0.6)',
+      'rgba(227, 119, 194, 0.6)',
+      'rgba(127, 127, 127, 0.6)',
+      'rgba(188, 189, 34, 0.6)',
+      'rgba(23, 190, 207, 0.6)',
+    ]
+  },
+  {
+    name: 'Elegant and Calm',
+    colors: [
+      'rgba(0, 63, 92, 0.6)',
+      'rgba(68, 78, 134, 0.6)',
+      'rgba(149, 81, 150, 0.6)',
+      'rgba(221, 81, 130, 0.6)',
+      'rgba(255, 110, 84, 0.6)',
+      'rgba(255, 166, 0, 0.6)',
+      'rgba(122, 81, 149, 0.6)',
+      'rgba(239, 86, 117, 0.6)',
+      'rgba(255, 118, 74, 0.6)',
+      'rgba(188, 80, 144, 0.6)',
+    ]
+  },
+  {
+    name: 'Soft and Easy on the Eyes',
+    colors: [
+      'rgba(161, 195, 209, 0.6)',
+      'rgba(179, 155, 200, 0.6)',
+      'rgba(218, 184, 148, 0.6)',
+      'rgba(255, 219, 168, 0.6)',
+      'rgba(243, 166, 131, 0.6)',
+      'rgba(247, 215, 148, 0.6)',
+      'rgba(119, 139, 235, 0.6)',
+      'rgba(231, 127, 103, 0.6)',
+      'rgba(207, 106, 135, 0.6)',
+      'rgba(89, 98, 117, 0.6)',
+    ]
+  },
+  {
+    name: 'Futuristic and High Contrast',
+    colors: [
+      'rgba(255, 107, 107, 0.6)',
+      'rgba(255, 180, 0, 0.6)',
+      'rgba(38, 166, 154, 0.6)',
+      'rgba(41, 182, 246, 0.6)',
+      'rgba(171, 71, 188, 0.6)',
+      'rgba(236, 64, 122, 0.6)',
+      'rgba(126, 87, 194, 0.6)',
+      'rgba(66, 165, 245, 0.6)',
+      'rgba(102, 187, 106, 0.6)',
+      'rgba(255, 167, 38, 0.6)',
+    ]
+  },
+  {
+    name: 'Earthy and Organic',
+    colors: [
+      'rgba(53, 94, 59, 0.6)',
+      'rgba(109, 163, 77, 0.6)',
+      'rgba(164, 222, 2, 0.6)',
+      'rgba(241, 196, 15, 0.6)',
+      'rgba(230, 126, 34, 0.6)',
+      'rgba(211, 84, 0, 0.6)',
+      'rgba(192, 57, 43, 0.6)',
+      'rgba(142, 68, 173, 0.6)',
+      'rgba(44, 62, 80, 0.6)',
+      'rgba(22, 160, 133, 0.6)',
+    ]
+  },
+  {
+    name: 'Grayscale & Muted Tones',
+    colors: [
+      'rgba(75, 75, 75, 0.6)',
+      'rgba(109, 109, 109, 0.6)',
+      'rgba(143, 143, 143, 0.6)',
+      'rgba(177, 177, 177, 0.6)',
+      'rgba(211, 211, 211, 0.6)',
+      'rgba(245, 245, 245, 0.6)',
+      'rgba(160, 160, 160, 0.6)',
+      'rgba(120, 120, 120, 0.6)',
+      'rgba(90, 90, 90, 0.6)',
+      'rgba(61, 61, 61, 0.6)',
+    ]
+  },
+  {
+    name: 'Gradients and Heatmaps',
+    colors: [
+      'rgba(255, 69, 0, 0.6)',
+      'rgba(255, 99, 71, 0.6)',
+      'rgba(255, 127, 80, 0.6)',
+      'rgba(255, 160, 122, 0.6)',
+      'rgba(255, 215, 0, 0.6)',
+      'rgba(218, 165, 32, 0.6)',
+      'rgba(205, 92, 92, 0.6)',
+      'rgba(233, 150, 122, 0.6)',
+      'rgba(250, 128, 114, 0.6)',
+      'rgba(255, 140, 0, 0.6)',
+    ]
+  },
+  {
+    name: 'Dark Mode Colors',
+    colors: [
+      'rgba(13, 115, 119, 0.6)',
+      'rgba(20, 255, 236, 0.6)',
+      'rgba(31, 64, 104, 0.6)',
+      'rgba(27, 27, 47, 0.6)',
+      'rgba(233, 69, 96, 0.6)',
+      'rgba(90, 24, 154, 0.6)',
+      'rgba(60, 9, 108, 0.6)',
+      'rgba(157, 78, 221, 0.6)',
+      'rgba(247, 37, 133, 0.6)',
+      'rgba(114, 9, 183, 0.6)',
+    ]
   }
 ];
+
+class ChartErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_: Error) {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('Chart Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="chart-error-boundary">
+          <h3>Something went wrong with the chart.</h3>
+          <p>Please try refreshing the page or contact support if the problem persists.</p>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, question }: ChartModalProps) => {
   // State for chart data and options
@@ -217,8 +395,8 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
         formatter: (value: any) => value?.toString() || ''
       },
       legend: {
-        position: 'top',
-        display: true,
+        position: legendPosition,
+        display: legendPosition !== 'none',
         labels: {
           font: { size: 12 },
           generateLabels: (chart: any) => {
@@ -259,7 +437,7 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
         }
       }
     }
-  }), []);
+  }), [legendPosition]);
 
   // Color change handler
   const handleColorChange = useCallback((color: string) => {
@@ -501,7 +679,7 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
       setChartOptions(null);
       setFilteredData(null);
     }
-  }, [data, chartType, generateColors, chartOptionsConfig]);
+  }, [data, chartType, generateColors, chartOptionsConfig, legendPosition]);
 
   // Function to handle export
   const handleExport = useCallback(() => {
@@ -547,230 +725,271 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
     }
   }, [selectedTheme, chartType]);
 
+  // Function to handle export confirmation
+  const handleExportConfirm = useCallback(async () => {
+    if (!chartRef.current) return;
+
+    try {
+      // Wait for next frame to ensure chart is rendered
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
+      let exportFunction;
+      const scale = exportOptions.resolution === 'high' ? 2 : exportOptions.resolution === 'print' ? 3 : 1;
+      const backgroundColor = exportOptions.transparent ? 'transparent' : 'white';
+
+      switch (exportOptions.format) {
+        case 'png':
+          exportFunction = htmlToImage.toPng;
+          break;
+        case 'jpeg':
+          exportFunction = htmlToImage.toJpeg;
+          break;
+        case 'svg':
+          exportFunction = htmlToImage.toSvg;
+          break;
+        case 'pdf':
+          exportFunction = htmlToImage.toPng;
+          break;
+        default:
+          exportFunction = htmlToImage.toPng;
+      }
+
+      const dataUrl = await exportFunction(chartRef.current, {
+        cacheBust: true,
+        pixelRatio: scale,
+        quality: exportOptions.compression,
+        backgroundColor,
+        style: {
+          transform: `scale(${exportOptions.scale})`,
+          transformOrigin: 'top left',
+        },
+        canvasWidth: chartRef.current.offsetWidth * scale,
+        canvasHeight: chartRef.current.offsetHeight * scale
+      });
+
+      // Create download link
+      const link = document.createElement('a');
+      link.download = `chart-export.${exportOptions.format}`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setShowExportOptions(false);
+    } catch (error) {
+      console.error('Error exporting chart:', error);
+      setError('Failed to export chart. Please try again.');
+    }
+  }, [exportOptions, chartRef]);
+
+  // Add the export options modal JSX
+  const renderExportOptions = useCallback(() => {
+    if (!showExportOptions) return null;
+
+    return (
+      <div className="export-options-overlay" onClick={() => setShowExportOptions(false)}>
+        <div className="export-options-popup" onClick={e => e.stopPropagation()}>
+          <h3>Export Options</h3>
+          <div className="export-option">
+            <label>Resolution:</label>
+            <select
+              value={exportOptions.resolution}
+              onChange={e => setExportOptions(prev => ({ ...prev, resolution: e.target.value as 'standard' | 'high' | 'print' }))}
+            >
+              <option value="standard">Standard</option>
+              <option value="high">High</option>
+              <option value="print">Print</option>
+            </select>
+          </div>
+          <div className="export-option">
+            <label>Format:</label>
+            <select
+              value={exportOptions.format}
+              onChange={e => setExportOptions(prev => ({ ...prev, format: e.target.value as 'png' | 'jpeg' | 'svg' | 'pdf' }))}
+            >
+              <option value="png">PNG</option>
+              <option value="jpeg">JPEG</option>
+              <option value="svg">SVG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div className="export-option">
+            <label>Quality: {Math.round(exportOptions.compression * 100)}%</label>
+            <input
+              type="range"
+              min="0.1"
+              max="1"
+              step="0.1"
+              value={exportOptions.compression}
+              onChange={e => setExportOptions(prev => ({ ...prev, compression: parseFloat(e.target.value) }))}
+            />
+          </div>
+          <div className="export-option checkbox">
+            <label>
+              <input
+                type="checkbox"
+                checked={exportOptions.transparent}
+                onChange={e => setExportOptions(prev => ({ ...prev, transparent: e.target.checked }))}
+              />
+              Transparent background
+            </label>
+          </div>
+          <div className="export-buttons">
+            <button onClick={() => setShowExportOptions(false)}>Cancel</button>
+            <button onClick={handleExportConfirm}>Export</button>
+          </div>
+        </div>
+      </div>
+    );
+  }, [showExportOptions, exportOptions, handleExportConfirm]);
+
   // Return the component JSX
   return (
-    <div className="chart-modal-overlay">
-      <div className={`chart-modal ${isOpen ? 'open' : ''}`}>
+    <div className="chart-modal-overlay" onClick={onClose}>
+      <div className="chart-modal" onClick={e => e.stopPropagation()}>
+        <div className="chart-modal-header">
+          <h2>Chart Visualization</h2>
+          <button className="close-button" onClick={onClose}>&times;</button>
+        </div>
         <div className="chart-modal-content">
-          <div className="chart-modal-header">
-            <h2>Chart Visualization</h2>
-            <button className="close-button" onClick={onClose}>×</button>
-          </div>
-          
-          <div className="chart-controls">
-            <div className="chart-type-selector">
-              <label>Chart Type:</label>
-              <div className="chart-type-buttons">
-                <button 
-                  className={chartType === 'bar' ? 'active' : ''}
-                  onClick={() => setChartType('bar')}
-                >
-                  Bar
-                </button>
-                <button 
-                  className={chartType === 'line' ? 'active' : ''}
-                  onClick={() => setChartType('line')}
-                >
-                  Line
-                </button>
-                <button 
-                  className={chartType === 'pie' ? 'active' : ''}
-                  onClick={() => setChartType('pie')}
-                >
-                  Pie
-                </button>
-              </div>
+          {error && <div className="chart-error">{error}</div>}
+          {questionContext && (
+            <div className="chart-context">
+              <h3>Context:</h3>
+              <p>{questionContext}</p>
             </div>
-            
-            <div className="chart-actions">
-              <button onClick={toggleAdvancedOptions}>
-                {showAdvancedOptions ? 'Hide Options' : 'Show Options'}
-              </button>
-              <button onClick={handleExport}>Export</button>
-            </div>
-          </div>
-          
-          {showAdvancedOptions && (
-            <div className="advanced-options">
-              <div className="chart-customization-section">
-                <h4>Chart Customization</h4>
-                {renderThemeSelector()}
-                <div className="option-group">
-                  <label htmlFor="chart-title">Chart Title:</label>
-                  <input
-                    id="chart-title"
-                    type="text"
-                    value={chartTitle}
-                    onChange={(e) => setChartTitle(e.target.value)}
-                    placeholder="Enter chart title"
-                  />
-                </div>
-                <div className="option-group">
-                  <label htmlFor="x-axis-label">X-Axis Label:</label>
-                  <input
-                    id="x-axis-label"
-                    type="text"
-                    value={xAxisLabel}
-                    onChange={(e) => setXAxisLabel(e.target.value)}
-                    placeholder="Enter x-axis label"
-                  />
-                </div>
-                <div className="option-group">
-                  <label htmlFor="y-axis-label">Y-Axis Label:</label>
-                  <input
-                    id="y-axis-label"
-                    type="text"
-                    value={yAxisLabel}
-                    onChange={(e) => setYAxisLabel(e.target.value)}
-                    placeholder="Enter y-axis label"
-                  />
-                </div>
-                <div className="option-group">
-                  <label htmlFor="legend-position">Legend Position:</label>
-                  <select
-                    id="legend-position"
-                    value={legendPosition}
-                    onChange={(e) => setLegendPosition(e.target.value as 'top' | 'bottom' | 'left' | 'right' | 'none')}
+          )}
+          <ChartErrorBoundary>
+            <div className="chart-controls">
+              <div className="chart-type-selector">
+                <span>Chart Type:</span>
+                <div className="chart-type-buttons">
+                  <button
+                    className={chartType === 'bar' ? 'active' : ''}
+                    onClick={() => setChartType('bar')}
                   >
-                    <option value="top">Top</option>
-                    <option value="bottom">Bottom</option>
-                    <option value="left">Left</option>
-                    <option value="right">Right</option>
-                    <option value="none">None</option>
-                  </select>
-                </div>
-                <div className="option-group checkbox">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={showDataLabels}
-                      onChange={(e) => setShowDataLabels(e.target.checked)}
-                    />
-                    Show Data Labels
-                  </label>
+                    Bar
+                  </button>
+                  <button
+                    className={chartType === 'line' ? 'active' : ''}
+                    onClick={() => setChartType('line')}
+                  >
+                    Line
+                  </button>
+                  <button
+                    className={chartType === 'pie' ? 'active' : ''}
+                    onClick={() => setChartType('pie')}
+                  >
+                    Pie
+                  </button>
                 </div>
               </div>
-              
-              <div className="chart-size-section">
-                <h4>Chart Size</h4>
+              <div className="chart-actions">
+                <button onClick={toggleAdvancedOptions}>
+                  {showAdvancedOptions ? 'Hide Options' : 'Show Options'}
+                </button>
+                <button onClick={handleExport}>Export</button>
+              </div>
+            </div>
+
+            {showAdvancedOptions && (
+              <div className="advanced-options">
+                <div className="chart-customization-section">
+                  <h4>Chart Customization</h4>
+                  <div className="option-group">
+                    <label>Chart Title:</label>
+                    <input
+                      type="text"
+                      value={chartTitle}
+                      onChange={(e) => setChartTitle(e.target.value)}
+                      placeholder="Enter chart title"
+                    />
+                  </div>
+                  <div className="option-group">
+                    <label>X-Axis Label:</label>
+                    <input
+                      type="text"
+                      value={xAxisLabel}
+                      onChange={(e) => setXAxisLabel(e.target.value)}
+                      placeholder="Enter x-axis label"
+                    />
+                  </div>
+                  <div className="option-group">
+                    <label>Y-Axis Label:</label>
+                    <input
+                      type="text"
+                      value={yAxisLabel}
+                      onChange={(e) => setYAxisLabel(e.target.value)}
+                      placeholder="Enter y-axis label"
+                    />
+                  </div>
+                  <div className="option-group">
+                    <label>Legend Position:</label>
+                    <select
+                      value={legendPosition}
+                      onChange={(e) => setLegendPosition(e.target.value as 'top' | 'bottom' | 'left' | 'right' | 'none')}
+                    >
+                      <option value="top">Top</option>
+                      <option value="bottom">Bottom</option>
+                      <option value="left">Left</option>
+                      <option value="right">Right</option>
+                      <option value="none">None</option>
+                    </select>
+                  </div>
+                  <div className="option-group">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={showDataLabels}
+                        onChange={(e) => setShowDataLabels(e.target.checked)}
+                      />
+                      Show Data Labels
+                    </label>
+                  </div>
+                </div>
+
                 <div className="chart-size-controls">
-                  <label>Height:</label>
+                  <label>Chart Height:</label>
                   <input
                     type="range"
                     min="200"
-                    max="800"
+                    max="1000"
                     value={chartHeight}
-                    onChange={(e) => setChartHeight(parseInt(e.target.value))}
+                    onChange={(e) => setChartHeight(Number(e.target.value))}
                   />
                   <span>{chartHeight}px</span>
                 </div>
+
                 <div className="chart-size-controls">
-                  <label>Width:</label>
+                  <label>Chart Width:</label>
                   <input
                     type="range"
-                    min="50"
+                    min="20"
                     max="100"
                     value={chartWidth}
-                    onChange={(e) => setChartWidth(parseInt(e.target.value))}
+                    onChange={(e) => setChartWidth(Number(e.target.value))}
                   />
                   <span>{chartWidth}%</span>
                 </div>
+
+                {renderThemeSelector()}
               </div>
-              
-              <div className="color-section">
-                <h4>Color Customization</h4>
-                <label>Click on a color to customize:</label>
-                <div className="color-chips">
-                  {filteredData && filteredData.datasets && filteredData.datasets[0].backgroundColor && (
-                    Array.isArray(filteredData.datasets[0].backgroundColor) ? 
-                      filteredData.datasets[0].backgroundColor.map((color: string, index: number) => (
-                        <div 
-                          key={index}
-                          className="color-chip"
-                          style={{ backgroundColor: color }}
-                          onClick={(e) => {
-                            setSelectedColorIndex(index);
-                            setSelectedColor(color);
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setColorPickerPosition({
-                              top: rect.bottom + window.scrollY,
-                              left: rect.left + window.scrollX
-                            });
-                            setShowColorPicker(true);
-                          }}
-                        >
-                          <span>{filteredData.labels[index]}</span>
-                        </div>
-                      )) : (
-                        <div 
-                          className="color-chip"
-                          style={{ backgroundColor: filteredData.datasets[0].backgroundColor }}
-                          onClick={(e) => {
-                            setSelectedColorIndex(0);
-                            setSelectedColor(filteredData.datasets[0].backgroundColor);
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setColorPickerPosition({
-                              top: rect.bottom + window.scrollY,
-                              left: rect.left + window.scrollX
-                            });
-                            setShowColorPicker(true);
-                          }}
-                        >
-                          <span>Series Color</span>
-                        </div>
-                      )
-                  )}
-                </div>
-                {showColorPicker && (
-                  <div 
-                    className="color-picker-container"
-                    style={{ top: colorPickerPosition.top, left: colorPickerPosition.left }}
-                  >
-                    <HexColorPicker color={selectedColor} onChange={handleColorChange} />
-                    <button onClick={() => setShowColorPicker(false)}>Apply</button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          
-          {error ? (
-            <div className="chart-error">{error}</div>
-          ) : (
-            <div 
-              className="chart-container" 
+            )}
+
+            <div
               ref={chartRef}
-              style={{ height: `${chartHeight}px`, width: `${chartWidth}%` }}
+              className="chart-container"
+              style={{
+                '--chart-height': `${chartHeight}px`,
+                '--chart-width': `${chartWidth}%`
+              } as React.CSSProperties}
             >
               {renderChart}
             </div>
-          )}
+          </ChartErrorBoundary>
+          {renderExportOptions()}
         </div>
       </div>
-      
-      {showExportOptions && (
-        <div className="export-options-overlay">
-          <div className="export-options-popup">
-            <h3>Export Chart</h3>
-            <div className="export-option">
-              <label>Format:</label>
-              <select
-                value={exportOptions.format}
-                onChange={(e) => setExportOptions({...exportOptions, format: e.target.value as 'png' | 'jpeg' | 'svg' | 'pdf'})}
-              >
-                <option value="png">PNG</option>
-                <option value="jpeg">JPEG</option>
-                <option value="svg">SVG</option>
-                <option value="pdf">PDF</option>
-              </select>
-            </div>
-            <div className="export-buttons">
-              <button onClick={() => setShowExportOptions(false)}>Cancel</button>
-              <button>Download</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

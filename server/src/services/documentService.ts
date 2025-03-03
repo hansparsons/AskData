@@ -4,6 +4,23 @@ import { OpenAIService } from './openaiService';
 import { ModelService, isOpenAIModel } from './modelService';
 import { sequelize } from '../db';
 
+interface SchemaColumn {
+  Field: string;
+}
+
+interface Schema {
+  tableName: string;
+  actualTableName: string;
+  originalName: string;
+  columns: SchemaColumn[];
+}
+
+interface ValidationResult {
+  valid: boolean;
+  error?: string;
+  availableColumns?: string[];
+}
+
 export class DocumentService {
   private ollamaService: OllamaService | null = null;
   private openaiService: OpenAIService | null = null;
@@ -18,7 +35,7 @@ export class DocumentService {
     this.initializeService(this.selectedModel);
   }
   
-  private initializeService(model: string) {
+  private initializeService(model: string): void {
     // Check if it's an OpenAI model
     if (model === 'gpt-4o') {
       const apiKey = this.modelService.getOpenAIApiKey();
@@ -39,7 +56,7 @@ export class DocumentService {
     }
   }
   
-  setOpenAIApiKey(apiKey: string) {
+  setOpenAIApiKey(apiKey: string): void {
     this.modelService.setOpenAIApiKey(apiKey);
     if (this.selectedModel === 'gpt-4o' && apiKey) {
       this.openaiService = new OpenAIService(apiKey, this.selectedModel);
@@ -97,20 +114,21 @@ export class DocumentService {
       throw new Error('Question and selected sources are required');
     }
 
+    let sqlQuery = '';
+    let schemas: Schema[] = [];
+
     try {
       // Verify database connection
       await sequelize.authenticate();
 
       // Get schemas for selected sources
-      const schemas = await this.getSourceSchemas(selectedSources);
+      schemas = await this.getSourceSchemas(selectedSources);
 
       if (!schemas.length) {
         throw new Error('No valid schemas found for the selected sources');
       }
 
       // Generate SQL query using the appropriate LLM service
-      let sqlQuery: string;
-      
       if (this.openaiService && this.selectedModel === 'gpt-4o') {
         sqlQuery = await this.openaiService.generateSQLQuery(schemas, question);
       } else if (this.ollamaService) {
@@ -129,7 +147,7 @@ export class DocumentService {
       }
 
       // Ensure consistent table names by replacing any variants with the actual table names
-      schemas.forEach(schema => {
+      schemas.forEach((schema: Schema) => {
         // Create a more robust regex that can match the table name with different underscore patterns
         // This will match the table name regardless of how many underscores are used
         const tableNameBase = schema.tableName.replace(/_{1,}/g, '_');
@@ -147,7 +165,7 @@ export class DocumentService {
       });
       
       // Additional check to ensure table names are correctly used
-      schemas.forEach(schema => {
+      schemas.forEach((schema: Schema) => {
         // Also check for table names without backticks and replace them
         const plainTableName = schema.tableName.replace(/`/g, '');
         if (sqlQuery.includes(plainTableName) && !sqlQuery.includes('`' + plainTableName + '`')) {
@@ -156,7 +174,7 @@ export class DocumentService {
       });
 
       // Fix value quoting for values containing spaces
-      sqlQuery = sqlQuery.replace(/['"](.+?)['"](\s*[;)]|$)/g, (match, value) => {
+      sqlQuery = sqlQuery.replace(/['"](.*?)['"](?=\s*[;)]|$)/g, (match, value) => {
         if (value.includes(' ')) {
           // Remove any existing backticks and add proper quotes
           value = value.replace(/`/g, '').trim();
@@ -170,6 +188,12 @@ export class DocumentService {
       
       // Log the final SQL query for debugging
       console.log('Final SQL query:', sqlQuery);
+
+      // Validate column names in the SQL query
+      const validationResult = this.validateColumnNames(sqlQuery, schemas);
+      if (!validationResult.valid) {
+        throw new Error(`SQL validation failed: ${validationResult.error}. Available columns are: ${validationResult.availableColumns?.join(', ') || 'None'}`);
+      }
 
       // Execute the query
       const [results] = await sequelize.query(sqlQuery);
@@ -195,153 +219,40 @@ export class DocumentService {
         results,
         answer: answer || 'No response generated'
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error executing query:', error);
+      
+      // Check for specific database errors related to column issues
       if (error instanceof Error) {
+        const errorMessage = error.message;
+        
+        // Handle unknown column errors specifically
+        if (errorMessage.includes('Unknown column')) {
+          // Extract the column name from the error message if possible
+          const columnMatch = errorMessage.match(/Unknown column '([^']+)'/);
+          const columnName = columnMatch ? columnMatch[1] : 'unknown';
+          
+          // Get available columns from schemas to provide helpful suggestions
+          const availableColumns = schemas?.flatMap((schema: Schema) => 
+            schema.columns.map((col: SchemaColumn) => col.Field)
+          ) || [];
+          
+          throw new Error(`Query execution failed: Unknown column '${columnName}' in query. Available columns are: ${availableColumns.join(', ')}`);
+        }
+        
+        // Handle other SQL errors
         throw new Error(`Query execution failed: ${error.message}`);
       }
+      
       throw new Error('An unexpected error occurred during query execution');
     }
   }
 
   /**
-   * Fixes GROUP BY issues for MySQL's ONLY_FULL_GROUP_BY mode
-   * Detects queries with aggregate functions and non-aggregated columns and adds appropriate GROUP BY clauses
+   * Get schemas for the selected data sources
    */
-  private fixGroupByIssues(sqlQuery: string): string {
-    // Check if the query contains aggregate functions
-    const hasAggregateFunctions = /\b(COUNT|SUM|AVG|MIN|MAX)\s*\(/i.test(sqlQuery);
-    
-    if (!hasAggregateFunctions) {
-      return sqlQuery; // No aggregate functions, no need to fix
-    }
-    
-    // Check if the query already has a GROUP BY clause
-    const hasGroupBy = /\bGROUP\s+BY\b/i.test(sqlQuery);
-    
-    if (hasGroupBy) {
-      return sqlQuery; // Already has GROUP BY, assume it's correct
-    }
-    
-    try {
-      // Simple SQL parser to extract SELECT columns
-      const selectMatch = sqlQuery.match(/\bSELECT\s+(.+?)\s+FROM\b/is);
-      
-      if (!selectMatch) {
-        return sqlQuery; // Can't parse the query, return as is
-      }
-      
-      const selectClause = selectMatch[1];
-      
-      // Split the SELECT clause by commas, but ignore commas inside functions
-      const columns: string[] = [];
-      let currentColumn = '';
-      let parenthesesCount = 0;
-      
-      for (let i = 0; i < selectClause.length; i++) {
-        const char = selectClause[i];
-        
-        if (char === '(') {
-          parenthesesCount++;
-        } else if (char === ')') {
-          parenthesesCount--;
-        }
-        
-        if (char === ',' && parenthesesCount === 0) {
-          columns.push(currentColumn.trim());
-          currentColumn = '';
-        } else {
-          currentColumn += char;
-        }
-      }
-      
-      if (currentColumn.trim()) {
-        columns.push(currentColumn.trim());
-      }
-      
-      // Identify non-aggregated columns
-      const nonAggregatedColumns: string[] = [];
-      
-      for (const column of columns) {
-        // Skip columns that are aggregate functions or have aliases with aggregate functions
-        if (!/\b(COUNT|SUM|AVG|MIN|MAX)\s*\(/i.test(column)) {
-          // Extract the column name, handling backticks and aliases
-          let columnName = column;
-          
-          // Remove AS clause if present
-          if (/ AS /i.test(columnName)) {
-            columnName = columnName.split(/ AS /i)[0].trim();
-          }
-          
-          // Handle backticked column names
-          const backtickMatch = columnName.match(/`([^`]+)`/);
-          if (backtickMatch) {
-            columnName = backtickMatch[1];
-          }
-          
-          // Handle table.column format
-          if (columnName.includes('.')) {
-            columnName = columnName.split('.')[1];
-            // Remove backticks if present
-            columnName = columnName.replace(/`/g, '');
-          }
-          
-          // Remove any remaining backticks
-          columnName = columnName.replace(/`/g, '');
-          
-          // Add to non-aggregated columns if it's not a complex expression
-          if (!columnName.includes('(') && !columnName.includes(')')) {
-            nonAggregatedColumns.push(column);
-          }
-        }
-      }
-      
-      // If we have non-aggregated columns, add a GROUP BY clause
-      if (nonAggregatedColumns.length > 0) {
-        // Check if the query has a WHERE clause
-        const whereMatch = sqlQuery.match(/\bWHERE\b/i);
-        const orderByMatch = sqlQuery.match(/\bORDER\s+BY\b/i);
-        const limitMatch = sqlQuery.match(/\bLIMIT\b/i);
-        
-        let insertPosition;
-        
-        if (limitMatch?.index !== undefined) {
-          insertPosition = limitMatch.index;
-        } else if (orderByMatch?.index !== undefined) {
-          insertPosition = orderByMatch.index;
-        } else if (whereMatch?.index !== undefined) {
-          // Find the end of the WHERE clause
-          const whereClause = sqlQuery.substring(whereMatch.index);
-          insertPosition = whereMatch.index + whereClause.length;
-        } else {
-          // No WHERE clause, insert before the end of the query
-          insertPosition = sqlQuery.length;
-        }
-        
-        // Remove semicolon if present
-        let modifiedQuery = sqlQuery.replace(/;\s*$/, '');
-        
-        // Insert GROUP BY clause
-        const groupByClause = ` GROUP BY ${nonAggregatedColumns.join(', ')}`;
-        modifiedQuery = modifiedQuery.substring(0, insertPosition) + groupByClause + modifiedQuery.substring(insertPosition);
-        
-        // Add semicolon back if it was present
-        if (sqlQuery.trim().endsWith(';')) {
-          modifiedQuery += ';';
-        }
-        
-        return modifiedQuery;
-      }
-    } catch (error) {
-      console.error('Error fixing GROUP BY issues:', error);
-      // If anything goes wrong with our parser, return the original query
-    }
-    
-    return sqlQuery;
-  }
-
-  private async getSourceSchemas(sourceNames: string[]): Promise<any[]> {
-    const schemas: any[] = [];
+  private async getSourceSchemas(sourceNames: string[]): Promise<Schema[]> {
+    const schemas: Schema[] = [];
     
     try {
       for (const sourceName of sourceNames) {
@@ -362,38 +273,29 @@ export class DocumentService {
           
           if (result) {
             schemas.push({
-              tableName: sanitizedTableName, // Use sanitized table name instead of original name
-              actualTableName: sanitizedTableName, // Store the actual table name for reference
-              originalName: sourceName, // Keep the original name for display purposes
-              columns: result
+              tableName: sanitizedTableName,
+              actualTableName: sanitizedTableName,
+              originalName: sourceName,
+              columns: result as SchemaColumn[]
             });
           }
         } catch (error) {
           // If the first attempt fails, try with a truncated name
-          // Some database systems might have table name length limitations
           console.warn(`Failed to find table with name: ${sanitizedTableName}, trying to find a matching version`);
           
           // Get all tables from the database
           const [tables] = await sequelize.query('SHOW TABLES', { raw: true });
           const tableList = tables.map((t: any) => {
-            // Safely extract the first value from the object
             const values = Object.values(t);
             return values.length > 0 && values[0] != null ? values[0].toString().toLowerCase() : '';
-          }).filter(Boolean); // Remove any empty strings
+          }).filter(Boolean);
           
-          // More flexible matching strategy:
-          // 1. Try to find a table that starts with our sanitized name (for truncated names)
-          // 2. Try to find a table that contains a significant portion of our sanitized name
-          // This handles cases where the table name might have been modified differently
           let matchingTable = null;
           
-          // First try to find a table that starts with our sanitized name (up to first 30 chars)
           const prefix = sanitizedTableName.substring(0, Math.min(sanitizedTableName.length, 30));
           matchingTable = tableList.find(tableName => tableName.startsWith(prefix));
           
-          // If no match found and the name is long, try a more flexible approach
           if (!matchingTable && sanitizedTableName.length > 20) {
-            // Get a significant portion of the name (first 20 chars) to use for matching
             const significantPortion = sanitizedTableName.substring(0, 20);
             matchingTable = tableList.find(tableName => tableName.includes(significantPortion));
           }
@@ -405,27 +307,202 @@ export class DocumentService {
               { raw: true }
             );
             
-            if (result) {
-              schemas.push({
-                tableName: matchingTable, // Use the actual table name found in the database
-                actualTableName: matchingTable, // Store the actual table name for reference
-                originalName: sourceName, // Keep the original name for display purposes
-                columns: result
-              });
-            }
-          } else {
-            console.error(`No matching table found for: ${sanitizedTableName}`);
+            schemas.push({
+              tableName: matchingTable,
+              actualTableName: matchingTable,
+              originalName: sourceName,
+              columns: result as SchemaColumn[]
+            });
           }
         }
       }
-
+      
       return schemas;
     } catch (error) {
-      console.error('Error fetching schemas:', error);
-      if (error instanceof Error) {
-        throw new Error(`Schema fetch failed: ${error.message}`);
+      console.error('Error getting source schemas:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validates column names in the SQL query against the available schema
+   * @param sqlQuery The SQL query to validate
+   * @param schemas The available schemas
+   * @returns Object indicating if validation passed and error details if it failed
+   */
+  /**
+   * Fixes GROUP BY issues for MySQL's ONLY_FULL_GROUP_BY mode by ensuring all non-aggregated
+   * columns in the SELECT clause are included in the GROUP BY clause
+   * @param sqlQuery The SQL query to fix
+   * @returns The fixed SQL query
+   */
+  private fixGroupByIssues(sqlQuery: string): string {
+    try {
+      // Check if the query has MIN/MAX without GROUP BY
+      const hasAggregate = /\b(MIN|MAX|AVG|SUM|COUNT)\s*\([^)]+\)/i.test(sqlQuery);
+      const hasGroupBy = /\bGROUP\s+BY\b/i.test(sqlQuery);
+      
+      if (hasAggregate && !hasGroupBy) {
+        // Extract non-aggregated columns from SELECT
+        const selectMatch = sqlQuery.match(/\bSELECT\s+([^;)]*?)\s+FROM\b/i);
+        if (!selectMatch) return sqlQuery;
+
+        const selectPart = selectMatch[1];
+        const nonAggregatedColumns = new Set<string>();
+
+        // Extract table name from the query
+        const fromMatch = sqlQuery.match(/\bFROM\s+[`]?([a-zA-Z0-9_]+)[`]?/i);
+        const tableName = fromMatch ? fromMatch[1] : null;
+        if (!tableName) return sqlQuery;
+
+        // Find columns that are not part of aggregate functions
+        const columnMatches = selectPart.match(/\b[`]?([a-zA-Z0-9_]+)[`]?(?!\s*\(|\s+AS\s+)\b(?![^(]*\))/gi);
+        if (columnMatches) {
+          columnMatches.forEach(match => {
+            const column = match.replace(/[`'"]/g, '').toLowerCase();
+            if (!column.match(/^(count|sum|avg|min|max|group_concat)$/i)) {
+              nonAggregatedColumns.add(column);
+            }
+          });
+        }
+
+        // Extract the aggregate expression
+        const aggregateMatch = selectPart.match(/\b(MIN|MAX|AVG|SUM|COUNT)\s*\([^)]+\)/i);
+        if (aggregateMatch && nonAggregatedColumns.size > 0) {
+          const aggregateExpr = aggregateMatch[0];
+          const columns = Array.from(nonAggregatedColumns).map(col => `\`${col}\``).join(', ');
+          
+          // Create a subquery that first finds the maximum value
+          const subquery = `SELECT ${aggregateExpr} AS agg_value FROM \`${tableName}\``;
+          
+          // Join with the original table to get the corresponding row
+          return `SELECT ${columns}, (${aggregateExpr}) AS agg_value FROM \`${tableName}\` WHERE (${aggregateExpr}) = (${subquery}) LIMIT 1`;
+        }
       }
-      throw new Error('An unexpected error occurred while fetching schemas');
+
+      // Handle regular GROUP BY cases
+      const groupByMatch = sqlQuery.match(/\bGROUP\s+BY\s+([^;)]*)/i);
+      if (!groupByMatch) return sqlQuery;
+
+      // Extract SELECT and GROUP BY parts
+      const selectMatch = sqlQuery.match(/\bSELECT\s+([^;)]*?)\s+FROM\b/i);
+      if (!selectMatch) return sqlQuery;
+
+      const selectPart = selectMatch[1];
+      let groupByPart = groupByMatch[1];
+
+      // Extract columns from SELECT clause, excluding aggregated functions
+      const selectColumns = new Set<string>();
+      const selectColumnMatches = selectPart.match(/\b[`]?([a-zA-Z0-9_]+)[`]?(?!\s*\(|\s+AS\s+)\b/gi);
+      if (selectColumnMatches) {
+        selectColumnMatches.forEach(match => {
+          const column = match.replace(/[`'"]/g, '').toLowerCase();
+          if (!column.match(/^(count|sum|avg|min|max|group_concat)$/i)) {
+            selectColumns.add(column);
+          }
+        });
+      }
+
+      // Extract existing GROUP BY columns
+      const groupByColumns = new Set<string>();
+      const groupByColumnMatches = groupByPart.match(/\b[`]?([a-zA-Z0-9_]+)[`]?\b/gi);
+      if (groupByColumnMatches) {
+        groupByColumnMatches.forEach(match => {
+          groupByColumns.add(match.replace(/[`'"]/g, '').toLowerCase());
+        });
+      }
+
+      // Add missing columns to GROUP BY
+      selectColumns.forEach(column => {
+        if (!groupByColumns.has(column.toLowerCase())) {
+          groupByPart += groupByPart ? `, \`${column}\`` : `\`${column}\``;
+        }
+      });
+
+      // Replace the original GROUP BY clause
+      return sqlQuery.replace(/\bGROUP\s+BY\s+([^;)]*)/i, `GROUP BY ${groupByPart}`);
+    } catch (error) {
+      console.error('Error fixing GROUP BY issues:', error);
+      return sqlQuery; // Return original query if there's an error
+    }
+  }
+
+  private validateColumnNames(sqlQuery: string, schemas: Schema[]): ValidationResult {
+    try {
+      // Extract all column references from the query
+      // This regex looks for column names in various SQL contexts
+      const columnPattern = /\b[`]?([a-zA-Z0-9_]+)[`]?\b(?=\s*(?:[=<>]|IS|IN|LIKE|BETWEEN|\+|-|\*|\/|%|,|\)|$))/gi;
+      const tableColumnPattern = /\b([a-zA-Z0-9_]+)\.([a-zA-Z0-9_]+)\b/gi;
+      
+      // Extract derived table aliases from subqueries
+      const derivedTablePattern = /\bAS\s+([a-zA-Z0-9_]+)(?=\s*(?:,|$|\)))/gi;
+      const derivedTableMatches = [...sqlQuery.matchAll(derivedTablePattern)];
+      const derivedTableAliases = new Set<string>();
+      derivedTableMatches.forEach(match => {
+        derivedTableAliases.add(match[1].toLowerCase());
+      });
+      
+      // Extract column names from the query
+      const columnMatches = [...sqlQuery.matchAll(columnPattern)];
+      const tableColumnMatches = [...sqlQuery.matchAll(tableColumnPattern)];
+      
+      // Combine all column names found
+      const referencedColumns = new Set<string>();
+      
+      // Define SQL keywords to skip
+      const sqlKeywords = ['SELECT', 'FROM', 'WHERE', 'GROUP', 'BY', 'HAVING', 'ORDER', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'ON', 'AS', 'AND', 'OR', 'NOT', 'IN', 'BETWEEN', 'LIKE', 'IS', 'NULL', 'ASC', 'DESC', 'LIMIT', 'OFFSET'];
+
+      // Process column matches
+      columnMatches.forEach(match => {
+        const columnName = match[1].toLowerCase();
+        if (!sqlKeywords.includes(columnName.toUpperCase()) && !derivedTableAliases.has(columnName)) {
+          referencedColumns.add(columnName);
+        }
+      });
+
+      // Process table.column matches
+      tableColumnMatches.forEach(match => {
+        const tableName = match[1].toLowerCase();
+        const columnName = match[2].toLowerCase();
+        // Skip validation if the table name is a derived table alias
+        if (!derivedTableAliases.has(tableName) && !sqlKeywords.includes(columnName.toUpperCase())) {
+          referencedColumns.add(columnName);
+        }
+      });
+
+      // Get all available columns from schemas
+      const availableColumns = new Set<string>();
+      schemas.forEach(schema => {
+        schema.columns.forEach(column => {
+          availableColumns.add(column.Field.toLowerCase());
+        });
+      });
+
+      // Validate that all referenced columns exist in schemas
+      const invalidColumns: string[] = [];
+      referencedColumns.forEach(column => {
+        if (!availableColumns.has(column) && !sqlKeywords.includes(column.toUpperCase())) {
+          invalidColumns.push(column);
+        }
+      });
+
+      if (invalidColumns.length > 0) {
+        return {
+          valid: false,
+          error: `Invalid column(s): ${invalidColumns.join(', ')}`,
+          availableColumns: Array.from(availableColumns)
+        };
+      }
+
+      return {
+        valid: true
+      };
+    } catch (error) {
+      console.error('Error validating column names:', error);
+      return {
+        valid: false,
+        error: 'Failed to validate column names'
+      };
     }
   }
 }

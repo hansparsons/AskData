@@ -483,7 +483,13 @@ function App() {
           >
             {isLoadingChart && chartType === 'bar' ? 'Loading...' : 'Bar Chart'}
           </button>
-          <button className="viz-button" disabled={!queryResults}>Export</button>
+          <button 
+            className="viz-button" 
+            disabled={!queryResults}
+            onClick={() => setShowChartModal(true)}
+          >
+            Export
+          </button>
           <div className="chart-options">
             <label className="include-answer-label">
               <input

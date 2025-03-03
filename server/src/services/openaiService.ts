@@ -46,14 +46,14 @@ export class OpenAIService {
         return `Table: ${tableName}\nColumns: ${columnsText}\n`;
       }).join('\n');
 
-      const prompt = `You are a SQL expert. Given the following database schema:\n\n${schemaText}\n\nIMPORTANT RULES:\n1. Always use backticks (\`) around column names that contain spaces\n2. Use the exact column names as shown in the schema\n3. Do not create or reference columns that don't exist in the schema\n4. When performing date/time calculations, use the appropriate MySQL functions\n\nGenerate a SQL query to answer this question: "${question}"\n\nReturn ONLY the SQL query without any explanations or markdown formatting.`;
+      const prompt = `You are a SQL expert. Given the following database schema:\n\n${schemaText}\n\nIMPORTANT RULES:\n1. Always use backticks (\`) around column names that contain spaces\n2. Use ONLY the exact column names as shown in the schema - do not invent, abbreviate, or modify column names\n3. Do not create or reference columns that don't exist in the schema\n4. When performing date/time calculations, use the appropriate MySQL functions\n5. If you're unsure about a column name, use only columns that are explicitly listed in the schema\n\nGenerate a SQL query to answer this question: "${question}"\n\nReturn ONLY the SQL query without any explanations or markdown formatting.`;
 
       const response = await axios.post(
         'https://api.openai.com/v1/chat/completions',
         {
           model: this.model,
           messages: [
-            { role: 'system', content: 'You are a SQL expert that generates precise SQL queries based on natural language questions and database schemas. Always use proper column name quoting.' },
+            { role: 'system', content: 'You are a SQL expert that generates precise SQL queries based on natural language questions and database schemas. Always use proper column name quoting. ONLY use column names that explicitly exist in the provided schema.' },
             { role: 'user', content: prompt }
           ],
           temperature: 0.3
