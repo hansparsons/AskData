@@ -476,21 +476,21 @@ function App() {
 
       {/* Right Pane - Visualization Options */}
       <div className="right-pane">
-        <h2>Visualization</h2>
+        <h2>Options</h2>
         <div className="visualization-options">
           <button 
             className="viz-button" 
             disabled={!queryResults || isLoadingChart} 
             onClick={() => handleChartButtonClick('bar')}
           >
-            {isLoadingChart && chartType === 'bar' ? 'Loading...' : 'Bar Chart'}
+            {isLoadingChart && chartType === 'bar' ? 'Loading...' : 'Chart'}
           </button>
           <button 
             className="viz-button" 
             disabled={!queryResults}
             onClick={() => setShowExportDialog(true)}
           >
-            Export
+            Save Data
           </button>
           <div className="chart-options">
             <label className="include-answer-label">

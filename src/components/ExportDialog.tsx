@@ -20,7 +20,6 @@ interface ExportOptions {
       txt: boolean;
       pdf: boolean;
       docx: boolean;
-      gdoc: boolean;
     };
     sqlQuery: {
       sql: boolean;
@@ -28,7 +27,6 @@ interface ExportOptions {
     };
     results: {
       xlsx: boolean;
-      gsheet: boolean;
       csv: boolean;
       tsv: boolean;
       json: boolean;
@@ -54,7 +52,6 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
         txt: false,
         pdf: false,
         docx: false,
-        gdoc: false,
       },
       sqlQuery: {
         sql: false,
@@ -202,14 +199,7 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
                 />
                 Microsoft Word
               </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={exportOptions.formats.answer.gdoc}
-                  onChange={() => handleFormatChange('answer', 'gdoc')}
-                />
-                Google Docs
-              </label>
+
             </div>
           </div>
         )}
@@ -250,14 +240,7 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
                 />
                 Microsoft Excel
               </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={exportOptions.formats.results.gsheet}
-                  onChange={() => handleFormatChange('results', 'gsheet')}
-                />
-                Google Sheets
-              </label>
+
               <label>
                 <input
                   type="checkbox"

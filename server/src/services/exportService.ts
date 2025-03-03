@@ -17,7 +17,6 @@ interface ExportOptions {
       txt: boolean;
       pdf: boolean;
       docx: boolean;
-      gdoc: boolean;
     };
     sqlQuery: {
       sql: boolean;
