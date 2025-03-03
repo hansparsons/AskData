@@ -563,7 +563,7 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
   // Effect to update chart options when customization values change
   useEffect(() => {
     if (chartOptions) {
-      setChartOptions(prevOptions => ({
+      setChartOptions((prevOptions: typeof chartOptionsConfig) => ({
         ...prevOptions,
         plugins: {
           ...prevOptions.plugins,
@@ -633,11 +633,19 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
 
       // Optimize dataset processing - avoid unnecessary operations
       let needsNewDatasets = false;
-      const validatedDatasets = chartDataConfig.datasets.map((dataset, index) => {
+      // Add interface for dataset structure
+      interface ChartDataset {
+        data: number[];
+        backgroundColor?: string | string[];
+        borderColor?: string | string[];
+        label?: string;
+      }
+      
+      const validatedDatasets = chartDataConfig.datasets.map((dataset: ChartDataset, index: number) => {
         if (!Array.isArray(dataset.data)) {
           throw new Error(`Invalid dataset at index ${index}: data is not an array`);
         }
-
+      
         // Only apply colors if needed - avoid unnecessary object creation
         if (!dataset.backgroundColor || (chartType === 'line' && !dataset.borderColor)) {
           needsNewDatasets = true;
@@ -651,7 +659,7 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
         
         return dataset;
       });
-
+      
       // Create a new object only if needed - avoid unnecessary re-renders
       const processedChartData = needsNewDatasets 
         ? { ...chartDataConfig, datasets: validatedDatasets }
@@ -681,9 +689,13 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
     }
   }, [data, chartType, generateColors, chartOptionsConfig, legendPosition]);
 
-  // Function to handle export
+  // Function to handle export button click
   const handleExport = useCallback(() => {
-    setShowExportOptions(true);
+    // Ensure chart is properly rendered before showing export options
+    // This fixes the issue when exporting with advanced options shown
+    setTimeout(() => {
+      setShowExportOptions(true);
+    }, 50);
   }, []);
 
   // Function to toggle advanced options
@@ -707,7 +719,7 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
           return {
             ...dataset,
             borderColor: colors,
-            backgroundColor: colors.map(color => color.replace('0.6)', '0.2)')),
+            backgroundColor: colors.map((color: string) => color.replace('0.6)', '0.2)')),
             pointBackgroundColor: colors,
             pointBorderColor: colors,
             borderWidth: 2
@@ -728,15 +740,29 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
   // Function to handle export confirmation
   const handleExportConfirm = useCallback(async () => {
     if (!chartRef.current) return;
-
+  
     try {
-      // Wait for next frame to ensure chart is rendered
-      await new Promise(resolve => requestAnimationFrame(resolve));
-
+      // Hide export options and advanced options before capturing
+      setShowExportOptions(false);
+      const wasAdvancedOptionsShown = showAdvancedOptions;
+      if (wasAdvancedOptionsShown) {
+        setShowAdvancedOptions(false);
+      }
+      
+      // Allow time for UI to update and stabilize
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Wait for three animation frames to ensure complete render
+      await new Promise(resolve => requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(resolve);
+        });
+      }));
+  
       let exportFunction;
       const scale = exportOptions.resolution === 'high' ? 2 : exportOptions.resolution === 'print' ? 3 : 1;
       const backgroundColor = exportOptions.transparent ? 'transparent' : 'white';
-
+  
       switch (exportOptions.format) {
         case 'png':
           exportFunction = htmlToImage.toPng;
@@ -766,7 +792,7 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
         canvasWidth: chartRef.current.offsetWidth * scale,
         canvasHeight: chartRef.current.offsetHeight * scale
       });
-
+  
       // Create download link
       const link = document.createElement('a');
       link.download = `chart-export.${exportOptions.format}`;
@@ -774,13 +800,16 @@ const ChartModal = ({ isOpen, onClose, chartType: initialChartType, data, questi
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      setShowExportOptions(false);
+  
+      // Restore advanced options state if it was previously shown
+      if (wasAdvancedOptionsShown) {
+        setShowAdvancedOptions(true);
+      }
     } catch (error) {
       console.error('Error exporting chart:', error);
       setError('Failed to export chart. Please try again.');
     }
-  }, [exportOptions, chartRef]);
+  }, [exportOptions, chartRef, showAdvancedOptions]);
 
   // Add the export options modal JSX
   const renderExportOptions = useCallback(() => {

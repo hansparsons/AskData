@@ -59,7 +59,6 @@ const ExportDialog: React.FC<ExportDialogProps> = ({
       },
       results: {
         xlsx: false,
-        gsheet: false,
         csv: false,
         tsv: false,
         json: false,

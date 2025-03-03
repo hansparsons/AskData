@@ -483,7 +483,7 @@ function App() {
             disabled={!queryResults || isLoadingChart} 
             onClick={() => handleChartButtonClick('bar')}
           >
-            {isLoadingChart && chartType === 'bar' ? 'Loading...' : 'Chart'}
+            {isLoadingChart && chartType === 'bar' ? 'Creating Chart...' : 'Create Chart'}
           </button>
           <button 
             className="viz-button" 
@@ -500,7 +500,7 @@ function App() {
                 onChange={(e) => setIncludeAnswerInChart(e.target.checked)}
                 disabled={!naturalLanguageAnswer}
               />
-              Include answer text in chart
+              Include answer text when creating chart
             </label>
           </div>
         </div>
