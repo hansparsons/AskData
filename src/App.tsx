@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import './App.css'
 import ChartModal from './components/ChartModal'
 import ExportDialog from './components/ExportDialog'
+import DataGridModal from './components/DataGridModal';
 
 function App() {
   const [dataSources, setDataSources] = useState<Array<{id: number, name: string, type: string}>>([])
@@ -28,6 +29,7 @@ function App() {
   const [isSettingApiKey, setIsSettingApiKey] = useState(false)
   const [apiKeyError, setApiKeyError] = useState<string | null>(null)
   const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showDataGridModal, setShowDataGridModal] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -488,46 +490,36 @@ function App() {
           <button 
             className="viz-button" 
             disabled={!queryResults}
+            onClick={() => setShowDataGridModal(true)}
+          >
+            Show Data
+          </button>
+          <button 
+            className="viz-button" 
+            disabled={!queryResults}
             onClick={() => setShowExportDialog(true)}
           >
-            Save Data
+            Export Data
           </button>
-          <div className="chart-options">
-            <label className="include-answer-label">
-              <input
-                type="checkbox"
-                checked={includeAnswerInChart}
-                onChange={(e) => setIncludeAnswerInChart(e.target.checked)}
-                disabled={!naturalLanguageAnswer}
-              />
-              Include answer text when creating chart
-            </label>
-          </div>
         </div>
       </div>
-      
-      {/* Chart Modal */}
-      {showChartModal && (
+
+      {/* Modals */}
+      {showChartModal && chartData && (
         <ChartModal
           isOpen={showChartModal}
-          onClose={() => {
-            setShowChartModal(false);
-            setChartData(null);
-          }}
+          onClose={() => setShowChartModal(false)}
           chartType={chartType}
-          data={chartData || queryResults}
+          data={chartData}
           question={query}
         />
       )}
-      
-      {/* Export Dialog */}
-      {showExportDialog && (
-        <ExportDialog
-          isOpen={showExportDialog}
-          onClose={() => setShowExportDialog(false)}
-          sqlQuery={sqlQuery}
-          answer={naturalLanguageAnswer}
-          results={queryResults}
+
+      {showDataGridModal && queryResults && (
+        <DataGridModal
+          isOpen={showDataGridModal}
+          onClose={() => setShowDataGridModal(false)}
+          data={queryResults}
         />
       )}
       
