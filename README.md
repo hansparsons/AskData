@@ -127,6 +127,194 @@ npm run build
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
+## Database Connection Guide
+
+### 1. MySQL
+
+#### Installation
+```bash
+npm install mysql2
+```
+
+#### Connection Pooling
+```javascript
+const mysql = require('mysql2');
+const pool = mysql.createPool({
+    host: 'your_host',
+    user: 'your_user',
+    password: 'your_password',
+    database: 'your_database',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+});
+
+module.exports = pool.promise();
+```
+
+#### Query Execution
+```javascript
+async function getUsers() {
+    try {
+        const pool = require('./db');
+        const [rows] = await pool.query('SELECT * FROM users WHERE status = ?', ['active']);
+        console.log(rows);
+    } catch (err) {
+        console.error('MySQL Query Error:', err);
+    }
+}
+```
+
+### 2. PostgreSQL
+
+#### Installation
+```bash
+npm install pg
+```
+
+#### Connection Pooling
+```javascript
+const { Pool } = require('pg');
+const pool = new Pool({
+    host: 'your_host',
+    user: 'your_user',
+    password: 'your_password',
+    database: 'your_database',
+    port: 5432,
+    max: 10,
+    idleTimeoutMillis: 30000
+});
+
+module.exports = pool;
+```
+
+#### Query Execution
+```javascript
+async function getUsers() {
+    try {
+        const pool = require('./db');
+        const { rows } = await pool.query('SELECT * FROM users WHERE status = $1', ['active']);
+        console.log(rows);
+    } catch (err) {
+        console.error('PostgreSQL Query Error:', err);
+    }
+}
+```
+
+### 3. Microsoft SQL Server
+
+#### Installation
+```bash
+npm install mssql
+```
+
+#### Connection Pooling
+```javascript
+const sql = require('mssql');
+const poolPromise = new sql.ConnectionPool({
+    user: 'your_user',
+    password: 'your_password',
+    server: 'your_host',
+    database: 'your_database',
+    options: { encrypt: true, trustServerCertificate: true },
+    pool: {
+        max: 10,
+        min: 2,
+        idleTimeoutMillis: 30000
+    }
+}).connect();
+
+module.exports = poolPromise;
+```
+
+#### Query Execution
+```javascript
+async function getUsers() {
+    try {
+        const pool = await require('./db');
+        const result = await pool.request()
+            .input('status', sql.VarChar, 'active')
+            .query('SELECT * FROM users WHERE status = @status');
+        console.log(result.recordset);
+    } catch (err) {
+        console.error('SQL Server Query Error:', err);
+    }
+}
+```
+
+### 4. Oracle Database
+
+#### Installation
+```bash
+npm install oracledb
+```
+
+#### Connection Pooling
+```javascript
+const oracledb = require('oracledb');
+
+async function init() {
+    try {
+        await oracledb.createPool({
+            user: 'your_user',
+            password: 'your_password',
+            connectString: 'your_host:1521/your_service_name',
+            poolMax: 10,
+            poolMin: 2,
+            poolTimeout: 60
+        });
+        console.log('Oracle Connection Pool Initialized');
+    } catch (err) {
+        console.error('Oracle Connection Pool Error:', err);
+    }
+}
+```
+
+#### Query Execution
+```javascript
+async function getUsers() {
+    try {
+        const connection = await oracledb.getConnection();
+        const result = await connection.execute(
+            'SELECT * FROM users WHERE status = :status',
+            ['active']
+        );
+        console.log(result.rows);
+        await connection.close();
+    } catch (err) {
+        console.error('Oracle Query Error:', err);
+    }
+}
+```
+
+### 5. SQLite
+
+#### Installation
+```bash
+npm install sqlite3
+```
+
+#### Connection Setup
+```javascript
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('your_database.db', (err) => {
+    if (err) console.error('SQLite Connection Error:', err);
+    else console.log('Connected to SQLite');
+});
+
+module.exports = db;
+```
+
+#### Query Execution
+```javascript
+function getUsers() {
+    db.all('SELECT * FROM users WHERE status = ?', ['active'], (err, rows) => {
+        if (err) console.error('SQLite Query Error:', err);
+        else console.log(rows);
+    });
+}
+```
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.

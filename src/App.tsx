@@ -2,9 +2,13 @@ import { useState, useRef, useEffect } from 'react'
 import './App.css'
 import ChartModal from './components/ChartModal'
 import ExportDialog from './components/ExportDialog'
-import DataGridModal from './components/DataGridModal';
+import DataGridModal from './components/DataGridModal'
+import DatabaseConnectionModal from '../client/src/components/DatabaseConnectionModal'
 
 function App() {
+  // Add this state variable with your other state declarations
+  const [databaseModalVisible, setDatabaseModalVisible] = useState(false);
+  
   const [dataSources, setDataSources] = useState<Array<{id: number, name: string, type: string}>>([])
   const [selectedDataSource, setSelectedDataSource] = useState<string | null>(null)
   const [isUploading, setIsUploading] = useState(false)
@@ -363,6 +367,48 @@ function App() {
     }
   }
 
+  // Handle saving database connection
+  const handleSaveDatabaseConnection = async (values: any) => {
+    try {
+      const response = await fetch('http://localhost:3000/api/databases', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: values.name,
+          type: values.type,
+          host: values.host,
+          port: parseInt(values.port),
+          database: values.database,
+          username: values.username,
+          password: values.password
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save database connection');
+      }
+
+      // Refresh data sources after successful connection
+      const sourcesResponse = await fetch('http://localhost:3000/api/data-sources');
+      if (!sourcesResponse.ok) {
+        throw new Error('Failed to fetch updated data sources');
+      }
+      const sourcesData = await sourcesResponse.json();
+      if (sourcesData.dataSources && Array.isArray(sourcesData.dataSources)) {
+        setDataSources(sourcesData.dataSources);
+      }
+
+      // Close the modal
+      setDatabaseModalVisible(false);
+      
+      // Show success message
+      setUploadError(null);
+    } catch (error) {
+      console.error('Error saving database connection:', error);
+      setUploadError(error instanceof Error ? error.message : 'Failed to save database connection');
+    }
+  };
+
   return (
     <div className="app-container">
       {/* Left Pane - Data Source Selection */}
@@ -426,7 +472,15 @@ function App() {
             {isUploading ? 'Uploading...' : 'Upload File'}
           </button>
           {uploadError && <div className="error-message">{uploadError}</div>}
-          <button className="source-button">Connect Database</button>
+          <button 
+            className="source-button"
+            onClick={() => {
+              console.log('Opening database modal...');
+              setDatabaseModalVisible(true);
+            }}
+          >
+            Connect Database
+          </button>
         </div>
       </div>
 
@@ -576,6 +630,14 @@ function App() {
           results={queryResults}
         />
       )}
+      
+      {/* Add the DatabaseConnectionModal */}
+      <DatabaseConnectionModal
+        visible={databaseModalVisible}
+        onClose={() => setDatabaseModalVisible(false)}
+        onSave={handleSaveDatabaseConnection}
+        initialValues={null}
+      />
     </div>
   )
 }

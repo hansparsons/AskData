@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "typeRoots": ["./node_modules/@types", "./src/types"],
+    "types": ["node"],
     "target": "ES2020",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",

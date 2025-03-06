@@ -10,6 +10,8 @@ import { OllamaService } from './services/ollamaService';
 import { OpenAIService } from './services/openaiService';
 import { ModelService } from './services/modelService';
 import { ExportService } from './services/exportService';
+import databaseRoutes from './routes/databaseRoutes';
+import { DatabaseConnectionService } from './services/DatabaseConnectionService';
 
 // Initialize Express app
 const app = express();
@@ -17,6 +19,9 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Mount database routes
+app.use('/api/databases', databaseRoutes);
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -89,16 +94,32 @@ app.post('/api/upload', upload.single('file'), async (req: Request, res: Respons
 // External database connection endpoint
 app.post('/api/connect-database', async (req: Request, res: Response) => {
   try {
-    const { host, port, database, username, password } = req.body;
+    const { name, type, host, port, database, username, password } = req.body;
+    
+    const databaseService = new DatabaseConnectionService();
+    
+    // Test and save the connection
+    const dataSource = await databaseService.saveConnection({
+      name,
+      type,
+      host,
+      port,
+      database,
+      username,
+      password
+    });
 
-    // TODO: 
-    // - Test connection to external database
-    // - Extract schema information
-    // - Store schema in main database
-
-    res.json({ message: 'Database connected successfully' });
+    res.json({ 
+      success: true, 
+      message: 'Database connected successfully',
+      dataSource
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Error connecting to external database' });
+    console.error('Database connection error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: error instanceof Error ? error.message : 'Error connecting to external database' 
+    });
   }
 });
 
@@ -280,3 +301,4 @@ if (process.argv.includes('--port')) {
     process.env.PORT = cmdLinePort.toString();
   }
 }
+

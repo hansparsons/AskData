@@ -12,6 +12,7 @@ export interface DataSourceAttributes {
     database: string;
     username: string;
     password: string;
+    databaseType?: string;
   };
   schema: {
     tableName: string;
@@ -36,6 +37,7 @@ class DataSource extends Model<DataSourceAttributes> implements DataSourceAttrib
     database: string;
     username: string;
     password: string;
+    databaseType?: string;
   };
   public schema!: {
     tableName: string;
