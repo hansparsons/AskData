@@ -1,6 +1,6 @@
 import { DataSourceAttributes } from '../models/DataSource';
 import { DatabaseFactory, DatabaseType } from './database/databaseFactory';
-import { DatabaseConnector } from './database/mysqlConnector';
+import { DatabaseConnector } from './database/DatabaseConnector';
 import DataSource from '../models/DataSource';
 
 export class DatabaseService {

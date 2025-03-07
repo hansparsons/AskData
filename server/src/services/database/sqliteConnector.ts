@@ -56,6 +56,22 @@ export class SQLiteConnector implements DatabaseConnector {
     }
   }
 
+  async getTables(): Promise<string[]> {
+    if (!this.db) {
+      throw new Error('Database connection not established');
+    }
+
+    try {
+      const tables = await this.db.all<Array<{ name: string }>>(
+        "SELECT name FROM sqlite_master WHERE type='table'"
+      );
+      
+      return tables.map(table => table.name);
+    } catch (error: unknown) {
+      throw new Error(`Failed to fetch tables: ${(error as Error).message}`);
+    }
+  }
+
   async getSchema(): Promise<{
     tableName: string;
     columns: Array<{

@@ -1,6 +1,6 @@
 import oracledb from 'oracledb';
 import { DataSourceAttributes } from '../../models/DataSource';
-import { DatabaseConnector } from './mysqlConnector';
+import { DatabaseConnector } from './DatabaseConnector';  // Fixed import path
 
 export class OracleConnector implements DatabaseConnector {
   private connection: oracledb.Connection | null = null;
@@ -49,6 +49,26 @@ export class OracleConnector implements DatabaseConnector {
       return result.rows || [];
     } catch (error: unknown) {
       throw new Error(`Failed to execute query: ${(error as Error).message}`);
+    }
+  }
+
+  async getTables(): Promise<string[]> {
+    if (!this.connection) {
+      throw new Error('Database connection not established');
+    }
+
+    try {
+      const result = await this.connection.execute(
+        `SELECT table_name 
+         FROM user_tables 
+         ORDER BY table_name`,
+        [],
+        { outFormat: oracledb.OUT_FORMAT_OBJECT }
+      );
+      
+      return (result.rows || []).map((table: any) => table.TABLE_NAME);
+    } catch (error: unknown) {
+      throw new Error(`Failed to fetch tables: ${(error as Error).message}`);
     }
   }
 

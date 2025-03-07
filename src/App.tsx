@@ -3,7 +3,7 @@ import './App.css'
 import ChartModal from './components/ChartModal'
 import ExportDialog from './components/ExportDialog'
 import DataGridModal from './components/DataGridModal'
-import DatabaseConnectionModal from '../client/src/components/DatabaseConnectionModal'
+import DatabaseWizard from './components/DatabaseWizard';
 
 function App() {
   // Add this state variable with your other state declarations
@@ -370,6 +370,7 @@ function App() {
   // Handle saving database connection
   const handleSaveDatabaseConnection = async (values: any) => {
     try {
+      console.log("[DEBUG] Saving database connection with values:", values);
       const response = await fetch('http://localhost:3000/api/databases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -380,12 +381,17 @@ function App() {
           port: parseInt(values.port),
           database: values.database,
           username: values.username,
-          password: values.password
+          password: values.password,
+          schema: values.schema // Add schema data to the request
         }),
       });
 
+      console.log("[DEBUG] Server response status:", response.status);
+      const responseData = await response.json();
+      console.log("[DEBUG] Server response data:", responseData);
+
       if (!response.ok) {
-        throw new Error('Failed to save database connection');
+        throw new Error(`Failed to save database connection: ${responseData.error || 'Unknown error'}`);
       }
 
       // Refresh data sources after successful connection
@@ -632,11 +638,10 @@ function App() {
       )}
       
       {/* Add the DatabaseConnectionModal */}
-      <DatabaseConnectionModal
+      <DatabaseWizard
         visible={databaseModalVisible}
         onClose={() => setDatabaseModalVisible(false)}
         onSave={handleSaveDatabaseConnection}
-        initialValues={null}
       />
     </div>
   )

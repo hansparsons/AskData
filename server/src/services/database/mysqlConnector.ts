@@ -1,19 +1,6 @@
 import mysql from 'mysql2/promise';
 import { DataSourceAttributes } from '../../models/DataSource';
-
-export interface DatabaseConnector {
-  connect(): Promise<void>;
-  disconnect(): Promise<void>;
-  executeQuery(query: string): Promise<any[]>;
-  getSchema(): Promise<{
-    tableName: string;
-    columns: Array<{
-      name: string;
-      type: string;
-      nullable: boolean;
-    }>;
-  }[]>;
-}
+import { DatabaseConnector } from './DatabaseConnector';
 
 export class MySQLConnector implements DatabaseConnector {
   private connection: mysql.Connection | null = null;
@@ -64,6 +51,25 @@ export class MySQLConnector implements DatabaseConnector {
       return rows as any[];
     } catch (error: unknown) {
       throw new Error(`Failed to execute query: ${(error as Error).message}`);
+    }
+  }
+
+  async getTables(): Promise<string[]> {
+    if (!this.connection || !this.config || !this.config.database) {
+      throw new Error('Database connection not established or invalid configuration');
+    }
+
+    try {
+      const [tables] = await this.connection.query(
+        `SELECT TABLE_NAME 
+         FROM INFORMATION_SCHEMA.TABLES 
+         WHERE TABLE_SCHEMA = ?`,
+        [this.config.database]
+      );
+      
+      return (tables as any[]).map(table => table.TABLE_NAME);
+    } catch (error: unknown) {
+      throw new Error(`Failed to fetch tables: ${(error as Error).message}`);
     }
   }
 

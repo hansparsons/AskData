@@ -1,6 +1,6 @@
 import { ConnectionPool, IResult } from 'mssql';
 import { DataSourceAttributes } from '../../models/DataSource';
-import { DatabaseConnector } from './mysqlConnector';
+import { DatabaseConnector } from './DatabaseConnector';
 
 export class MSSQLConnector implements DatabaseConnector {
   private pool: ConnectionPool | null = null;
@@ -55,6 +55,24 @@ export class MSSQLConnector implements DatabaseConnector {
       return result.recordset;
     } catch (error: unknown) {
       throw new Error(`Failed to execute query: ${(error as Error).message}`);
+    }
+  }
+
+  async getTables(): Promise<string[]> {
+    if (!this.pool) {
+      throw new Error('Database connection not established');
+    }
+
+    try {
+      const tables = await this.pool.request().query(
+        `SELECT TABLE_NAME 
+         FROM INFORMATION_SCHEMA.TABLES 
+         WHERE TABLE_TYPE = 'BASE TABLE'`
+      );
+      
+      return tables.recordset.map((table: any) => table.TABLE_NAME);
+    } catch (error: unknown) {
+      throw new Error(`Failed to fetch tables: ${(error as Error).message}`);
     }
   }
 

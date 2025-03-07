@@ -10,6 +10,10 @@ export interface DatabaseConnectionConfig {
   database: string;
   username?: string;
   password?: string;
+  schema?: any; // Support both array and object schema formats
+  connectString?: string;
+  encrypt?: boolean;
+  serviceName?: string;
 }
 
 export class DatabaseConnectionService {
@@ -48,7 +52,7 @@ export class DatabaseConnectionService {
       const dataSource = await DataSource.create({
         name: config.name,
         type: 'database',
-        schema: [], // Add empty schema initially
+        schema: config.schema || [], // Use provided schema or empty array
         connectionConfig: {
           host: config.host || '',
           port: config.port || 0,
@@ -104,6 +108,7 @@ export class DatabaseConnectionService {
 
       const [updated] = await DataSource.update({
         name: config.name,
+        schema: config.schema || [], // Include schema in the update
         connectionConfig: {
           host: config.host || '',
           port: config.port || 0,

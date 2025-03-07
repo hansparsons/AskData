@@ -1,5 +1,6 @@
 import { DataSourceAttributes } from '../../models/DataSource';
-import { DatabaseConnector, MySQLConnector } from './mysqlConnector';
+import { DatabaseConnector } from './DatabaseConnector';
+import { MySQLConnector } from './mysqlConnector';
 import { PostgresConnector } from './postgresConnector';
 import { MSSQLConnector } from './mssqlConnector';
 import { OracleConnector } from './oracleConnector';

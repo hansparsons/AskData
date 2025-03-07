@@ -10,4 +10,5 @@ export interface DatabaseConnector {
       nullable: boolean;
     }>;
   }[]>;
+  getTables(): Promise<string[]>;
 }

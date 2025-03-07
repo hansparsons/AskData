@@ -101,4 +101,23 @@ export class PostgresConnector implements DatabaseConnector {
       throw new Error(`Failed to fetch schema: ${(error as Error).message}`);
     }
   }
+
+  // Add the missing getTables method
+  async getTables(): Promise<string[]> {
+    // Implementation for getting tables from PostgreSQL
+    const query = `
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name;
+    `;
+    
+    try {
+      const result = await this.executeQuery(query);
+      return result.map(row => row.table_name);
+    } catch (error) {
+      console.error('Error fetching tables from PostgreSQL:', error);
+      throw error;
+    }
+  }
 }

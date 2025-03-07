@@ -14,7 +14,7 @@ export class DatabaseConnectorFactory {
       case 'oracle':
         return new OracleConnector(config);
       case 'postgres':
-        return new PostgresConnector(config);
+        return new PostgresConnector(config); 
       case 'mssql':
         return new MSSQLConnector(config);
       case 'mysql':

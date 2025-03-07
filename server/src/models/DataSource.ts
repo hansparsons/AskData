@@ -13,6 +13,9 @@ export interface DataSourceAttributes {
     username: string;
     password: string;
     databaseType?: string;
+    connectString?: string;
+    encrypt?: boolean;
+    serviceName?: string;
   };
   schema: {
     tableName: string;
@@ -38,6 +41,9 @@ class DataSource extends Model<DataSourceAttributes> implements DataSourceAttrib
     username: string;
     password: string;
     databaseType?: string;
+    connectString?: string;
+    encrypt?: boolean;
+    serviceName?: string;
   };
   public schema!: {
     tableName: string;
