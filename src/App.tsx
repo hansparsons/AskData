@@ -4,6 +4,9 @@ import ChartModal from './components/ChartModal'
 import ExportDialog from './components/ExportDialog'
 import DataGridModal from './components/DataGridModal'
 import DatabaseWizard from './components/DatabaseWizard';
+import ChatMessage from './components/ChatMessage';
+import SendIcon from '@mui/icons-material/Send';
+import StopIcon from '@mui/icons-material/Stop';
 
 function App() {
   // Add this state variable with your other state declarations
@@ -18,6 +21,8 @@ function App() {
   const [sqlQuery, setSqlQuery] = useState('')
   const [queryResults, setQueryResults] = useState<any>(null)
   const [naturalLanguageAnswer, setNaturalLanguageAnswer] = useState('')
+  const [chatHistory, setChatHistory] = useState<Array<{role: 'user' | 'assistant', content: string}>>([])  
+  const [lastSuccessfulQuery, setLastSuccessfulQuery] = useState('')
   const [isExecuting, setIsExecuting] = useState(false)
   const [showConfirmation, setShowConfirmation] = useState(false)
   const [showChartModal, setShowChartModal] = useState(false)
@@ -216,6 +221,9 @@ function App() {
     setUploadError(null)
     setNaturalLanguageAnswer('')
     setQueryResults(null)
+    
+    // Add user message to chat history
+    setChatHistory(prev => [...prev, { role: 'user', content: query }])
 
     try {
       const response = await fetch('http://localhost:3000/api/query', {
@@ -237,13 +245,14 @@ function App() {
       }
 
       setSqlQuery(data.sql)
-      setShowConfirmation(true)
+      // Don't set isExecuting to false here
+      // Instead, let handleQueryConfirmation handle it
+      handleQueryConfirmation(true)
     } catch (error) {
       console.error('Error generating SQL query:', error)
       setUploadError(error instanceof Error ? error.message : 'Failed to generate SQL query. Please try again.')
       setShowConfirmation(false)
-    } finally {
-      setIsExecuting(false)
+      setIsExecuting(false) // Only set to false on error
     }
   }
 
@@ -275,6 +284,17 @@ function App() {
       const data = await response.json()
       setQueryResults(data.results)
       setNaturalLanguageAnswer(data.answer)
+      
+      // Add assistant response to chat history
+      if (data.answer) {
+        setChatHistory(prev => [...prev, { role: 'assistant', content: data.answer }])
+      }
+      
+      // Store the last successful query before clearing the input
+      setLastSuccessfulQuery(query)
+      
+      // Clear the query input after sending
+      setQuery('')
     } catch (error) {
       console.error('Error executing query:', error)
       
@@ -293,77 +313,81 @@ function App() {
   }
 
   const handleChartButtonClick = async (type: 'bar' | 'line' | 'pie') => {
-    console.log('Chart button clicked:', { type, queryResults })
+    console.log('Chart button clicked:', { type, queryResults });
     if (!queryResults) {
-      console.log('No query results available')
-      return
+      console.log('No query results available');
+      setUploadError('Missing query results');
+      return;
+    }
+    
+    // Use lastSuccessfulQuery instead of the current query input
+    const questionText = lastSuccessfulQuery || query.trim();
+    if (!questionText) {
+      console.log('No question available');
+      setUploadError('Missing question');
+      return;
     }
       
     try {
-      // Log the query results structure
-      console.log('Query results structure:', {
-        isArray: Array.isArray(queryResults),
-        type: typeof queryResults,
-        length: Array.isArray(queryResults) ? queryResults.length : 'N/A',
-        sample: queryResults
-      })
-    
-      // Validate query results structure
-      if (typeof queryResults !== 'object' || !Array.isArray(queryResults)) {
-        throw new Error('Invalid query results format')
-      }
-        
-      setChartType(type)
-      setIsLoadingChart(true)
-      setChartData(null)
+      setChartType(type);
+      setIsLoadingChart(true);
+      setChartData(null);
         
       console.log('Preparing chart data request:', {
         question: query,
-        includeAnswer: includeAnswerInChart,
-        hasNaturalLanguageAnswer: !!naturalLanguageAnswer
-      })
+        data: queryResults,
+        chartType: type
+      });
+    
+      const requestBody = {
+        question: questionText,
+        data: queryResults,
+        chartType: type,
+        selectedModel: selectedModel,
+        includeAnswer: includeAnswerInChart && naturalLanguageAnswer ? true : false
+      };
+
+      if (includeAnswerInChart && naturalLanguageAnswer) {
+        requestBody.data = {
+          results: queryResults,
+          answer: naturalLanguageAnswer
+        };
+      }
     
       const response = await fetch('http://localhost:3000/api/chart-data', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          question: query,
-          data: naturalLanguageAnswer && includeAnswerInChart ? { results: queryResults, answer: naturalLanguageAnswer } : queryResults,
-          chartType: type,
-          selectedModel: selectedModel
-        }),
-      })
+        body: JSON.stringify(requestBody),
+      });
     
       if (!response.ok) {
-        const errorData = await response.json()
-        console.error('Chart data API error:', errorData)
-        throw new Error(errorData.message || 'Chart data generation failed')
+        const errorData = await response.json();
+        console.error('Chart data API error:', errorData);
+        throw new Error(errorData.error || 'Chart data generation failed');
       }
     
-      const data = await response.json()
-      console.log('Received chart data:', data)
+      const data = await response.json();
+      console.log('Received chart data:', data);
         
-      // Validate received chart data
       if (!data || typeof data !== 'object') {
-        console.error('Invalid chart data structure:', data)
-        throw new Error('Invalid chart data received')
+        throw new Error('Invalid chart data received');
       }
         
-      setChartData(data)
-      setShowChartModal(true)
+      setChartData(data);
+      setShowChartModal(true);
     } catch (error) {
       console.error('Detailed chart error:', {
         error,
         message: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
-      })
-      setUploadError(error instanceof Error ? error.message : 'Failed to generate chart')
-      setChartData(null)
-      setShowChartModal(false)
+      });
+      setUploadError(error instanceof Error ? error.message : 'Failed to generate chart');
+      setChartData(null);
+      setShowChartModal(false);
     } finally {
-      setIsLoadingChart(false)
+      setIsLoadingChart(false);
     }
   }
 
@@ -493,46 +517,38 @@ function App() {
       {/* Main Area - Query Input and Results */}
       <div className="main-area">
         <div className="query-section">
-          <h2>Natural Language Query</h2>
-          <textarea
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Enter your query in natural language..."
-            className="query-input"
-          />
-          <button 
-            className="execute-button"
-            onClick={handleQuerySubmit}
-            disabled={!selectedDataSource || !query.trim() || isExecuting}
-          >
-            {isExecuting ? 'Processing...' : 'Execute Query'}
-          </button>
-        </div>
-
-        {showConfirmation && (
-          <div className="confirmation-section">
-            <h3>Generated SQL Query:</h3>
-            <pre className="sql-preview">{sqlQuery}</pre>
-            <div className="confirmation-buttons">
-              <button onClick={() => handleQueryConfirmation(true)}>Execute</button>
-              <button onClick={() => handleQueryConfirmation(false)}>Cancel</button>
-            </div>
+          <h2>Chat with Your Data</h2>
+          <div className="chat-messages">
+            {chatHistory.map((message, index) => (
+              <ChatMessage
+                key={index}
+                role={message.role}
+                content={message.content}
+              />
+            ))}
+            {isExecuting && (
+              <ChatMessage
+                role="user"
+                content={query}
+                isLoading={true}
+              />
+            )}
           </div>
-        )}
-
-        <div className="results-section">
-          {naturalLanguageAnswer && (
-            <div className="answer-container">
-              <h3>Answer:</h3>
-              <p>{naturalLanguageAnswer}</p>
-            </div>
-          )}
-          {queryResults && (
-            <div className="results-container">
-              <h3>Results:</h3>
-              <pre>{JSON.stringify(queryResults, null, 2)}</pre>
-            </div>
-          )}
+          <div className="chat-input">
+            <textarea
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Ask a question about your data..."
+              className="query-input"
+            />
+            <button 
+              className="execute-button"
+              onClick={handleQuerySubmit}
+              disabled={!selectedDataSource || !query.trim() || isExecuting}
+            >
+              {isExecuting ? <StopIcon /> : <SendIcon />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -542,7 +558,7 @@ function App() {
         <div className="visualization-options">
           <button 
             className="viz-button" 
-            disabled={!queryResults || isLoadingChart} 
+            disabled={!queryResults || isLoadingChart}
             onClick={() => handleChartButtonClick('bar')}
           >
             {isLoadingChart && chartType === 'bar' ? 'Creating Chart...' : 'Create Chart'}
@@ -562,6 +578,22 @@ function App() {
             Export Data
           </button>
         </div>
+        
+        {/* Removed the confirmation section with execute/cancel buttons */}
+        
+        {sqlQuery && (
+          <div className="confirmation-section">
+            <h3>Generated SQL Query:</h3>
+            <pre className="sql-preview">{sqlQuery}</pre>
+          </div>
+        )}
+
+        {queryResults && (
+          <div className="results-container">
+            <h3>Results:</h3>
+            <pre>{JSON.stringify(queryResults, null, 2)}</pre>
+          </div>
+        )}
       </div>
 
       {/* Modals */}

@@ -23,12 +23,9 @@ export interface ProcessedData {
 function sanitizeColumnName(columnName: string): string {
   return columnName
     .replace(/[()]/g, '') // Remove parentheses
-    .replace(/[\s#\-]/g, '_') // Replace spaces, hashtags, and hyphens with underscores
-    .replace(/[^a-zA-Z0-9_]/g, '') // Remove any other special characters
-    .replace(/_+/g, '_') // Replace multiple underscores with a single one
-    .replace(/_$/g, '') // Remove trailing underscores
+    .replace(/[^a-zA-Z0-9_ ]/g, '') // Only remove truly invalid characters
     .replace(/^(\d)/, 'col_$1') // Prefix with 'col_' if starts with number
-    .toLowerCase(); // Convert to lowercase for consistency
+    .trim(); // Trim any leading/trailing whitespace
 }
 
 export async function processSpreadsheet(filePath: string, fileName: string): Promise<ProcessedData> {

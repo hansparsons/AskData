@@ -256,64 +256,29 @@ export class DocumentService {
     
     try {
       for (const sourceName of sourceNames) {
-        // Sanitize table name using the same logic as in fileProcessor
-        let sanitizedTableName = sourceName
+        // Use the original table name without sanitization
+        const tableName = sourceName
           .replace(/^\d{13}-/, '') // remove timestamp prefix
-          .replace(/\.[^/.]+$/, '') // remove file extension
-          .replace(/[^a-zA-Z0-9_]/g, '_') // replace special chars with underscore
-          .replace(/^[0-9]/, 't$&') // prepend 't' if starts with number
-          .toLowerCase(); // convert to lowercase for consistency
+          .replace(/\.[^/.]+$/, ''); // remove file extension
         
         try {
-          // First try with the standard sanitized name
+          // Query the table using the original name
           const [result] = await sequelize.query(
-            `SHOW COLUMNS FROM \`${sanitizedTableName}\``,
+            `SHOW COLUMNS FROM \`${tableName}\``,
             { raw: true }
           );
           
           if (result) {
             schemas.push({
-              tableName: sanitizedTableName,
-              actualTableName: sanitizedTableName,
+              tableName: tableName,
+              actualTableName: tableName,
               originalName: sourceName,
               columns: result as SchemaColumn[]
             });
           }
         } catch (error) {
-          // If the first attempt fails, try with a truncated name
-          console.warn(`Failed to find table with name: ${sanitizedTableName}, trying to find a matching version`);
-          
-          // Get all tables from the database
-          const [tables] = await sequelize.query('SHOW TABLES', { raw: true });
-          const tableList = tables.map((t: any) => {
-            const values = Object.values(t);
-            return values.length > 0 && values[0] != null ? values[0].toString().toLowerCase() : '';
-          }).filter(Boolean);
-          
-          let matchingTable = null;
-          
-          const prefix = sanitizedTableName.substring(0, Math.min(sanitizedTableName.length, 30));
-          matchingTable = tableList.find(tableName => tableName.startsWith(prefix));
-          
-          if (!matchingTable && sanitizedTableName.length > 20) {
-            const significantPortion = sanitizedTableName.substring(0, 20);
-            matchingTable = tableList.find(tableName => tableName.includes(significantPortion));
-          }
-          
-          if (matchingTable) {
-            console.log(`Found matching table: ${matchingTable}`);
-            const [result] = await sequelize.query(
-              `SHOW COLUMNS FROM \`${matchingTable}\``,
-              { raw: true }
-            );
-            
-            schemas.push({
-              tableName: matchingTable,
-              actualTableName: matchingTable,
-              originalName: sourceName,
-              columns: result as SchemaColumn[]
-            });
-          }
+          console.warn(`Failed to find table with name: ${tableName}`);
+          throw error;
         }
       }
       
@@ -454,8 +419,8 @@ export class DocumentService {
 
       // Process column matches
       columnMatches.forEach(match => {
-        const columnName = match[1].toLowerCase();
-        if (!sqlKeywords.includes(columnName.toUpperCase()) && !derivedTableAliases.has(columnName)) {
+        const columnName = match[1];
+        if (!sqlKeywords.includes(columnName.toUpperCase()) && !derivedTableAliases.has(columnName.toLowerCase())) {
           referencedColumns.add(columnName);
         }
       });
@@ -463,7 +428,7 @@ export class DocumentService {
       // Process table.column matches
       tableColumnMatches.forEach(match => {
         const tableName = match[1].toLowerCase();
-        const columnName = match[2].toLowerCase();
+        const columnName = match[2];
         // Skip validation if the table name is a derived table alias
         if (!derivedTableAliases.has(tableName) && !sqlKeywords.includes(columnName.toUpperCase())) {
           referencedColumns.add(columnName);
@@ -474,6 +439,9 @@ export class DocumentService {
       const availableColumns = new Set<string>();
       schemas.forEach(schema => {
         schema.columns.forEach(column => {
+          // Store the exact column name as it appears in the database
+          availableColumns.add(column.Field);
+          // Also store lowercase version for case-insensitive matching
           availableColumns.add(column.Field.toLowerCase());
         });
       });
@@ -481,7 +449,10 @@ export class DocumentService {
       // Validate that all referenced columns exist in schemas
       const invalidColumns: string[] = [];
       referencedColumns.forEach(column => {
-        if (!availableColumns.has(column) && !sqlKeywords.includes(column.toUpperCase())) {
+        // Check both exact match and lowercase match
+        if (!availableColumns.has(column) && 
+            !availableColumns.has(column.toLowerCase()) && 
+            !sqlKeywords.includes(column.toUpperCase())) {
           invalidColumns.push(column);
         }
       });
